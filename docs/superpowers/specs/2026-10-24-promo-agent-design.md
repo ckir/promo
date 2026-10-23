@@ -90,6 +90,7 @@ product:
   prohibited_claims: [string]  # phrases that must never appear, e.g. "guaranteed"; may be empty
   disclosures: [string]        # injected verbatim by code, e.g. "#ad"
 brand_voice: brand.md           # path, relative to repo root
+confidential: true              # default; false permits generator profiles that train on input
 launch_date: 2026-11-03         # ISO date; beat offsets are relative to it
 beats:
   - id: teaser                  # slug [a-z0-9-]+, unique within the campaign
@@ -120,9 +121,10 @@ examples. Milestone 1 reads the block; milestone 4 rewrites only the block.
 
 Commands:
 
-- `promo draft <campaign>`: for each beat and network, make one structured-output call to the
-  Claude API (`messages.parse` against a pydantic `Variants` model) with the manifest, the
-  brand voice few-shots and the per-network rules, and write
+- `promo draft <campaign>`: for each beat and network, make one structured-output call
+  through the `Generator` interface (milestone 1 ships the Anthropic implementation, which
+  uses `messages.parse` against a pydantic `Variants` model, and an in-process fake used by
+  the tests) with the manifest, the brand voice few-shots and the per-network rules, and write
   `drafts/<campaign>/<beat>/<network>.md`. Front-matter holds `id`, `campaign`, `beat`,
   `network`, `status` (draft, approved, scheduled, posted), `variants` (count), `chosen`
   (index or null), `generated_at`, `model`, `usage` (input and output tokens, so spend is
@@ -208,12 +210,56 @@ cannot drift apart.
 
 Storage in milestone 1 is the draft file itself. There is no database.
 
-Configuration: `ANTHROPIC_API_KEY` from `.env`; `promo.toml` holds `model` (default
-`claude-opus-5-5`), `effort`, `max_tokens`, `variants_per_draft` (default 3), `timezone` (an
-IANA name, default the machine's local zone), and per-network overrides such as the X
-character limit for a premium account.
+Configuration: secrets come from `.env`; `promo.toml` holds `variants_per_draft` (default
+3), `timezone` (an IANA name, default the machine's local zone), per-network overrides such
+as the X character limit for a premium account, and generator profiles:
+
+```toml
+[generator]
+default = "claude"
+
+[profiles.claude]
+kind = "anthropic"            # anthropic | openai-compatible (the latter from milestone 1b)
+model = "claude-opus-5-5"
+api_key_env = "ANTHROPIC_API_KEY"
+effort = "high"
+max_tokens = 4096
+trains_on_input = false
+```
+
+`promo draft --profile <name>` overrides the default for one run. Every draft records the
+profile name and model in front-matter next to `usage`, so drafts from different models are
+distinguishable later, and `r` in the review loop regenerates with the profile recorded on
+the draft, not the configured default. `api_key_env` is optional, since local endpoints
+need no key; `effort` is honoured only by the Anthropic kind and ignored elsewhere. A profile with `trains_on_input = true` is refused before the first
+call unless the campaign manifest sets `confidential: false` (the manifest field defaults to
+`true`); the flag belongs to the configured profile, not the vendor, because the same
+vendor's terms differ by tier and by region.
 
 Nothing in milestone 1 has credentials for, or code paths to, any social network.
+
+### Milestone 1b: a second generator
+
+Adds one `openai-compatible` generator configured by `base_url`, `model` and `api_key_env`.
+One implementation covers Ollama, LM Studio, OpenRouter, Groq and Gemini's compatible
+endpoint. It requests schema-constrained output (`response_format` of type `json_schema`)
+and, when the endpoint rejects or ignores that, falls back to JSON mode with the schema in
+the prompt, pydantic validation and two retries; a draft produced by the fallback carries
+`schema_fallback` in `warnings`, and a draft that still fails validation is not written and
+the run reports it. Rate-limit and model-not-found responses stop the run with the
+provider's message; nothing is retried silently across a daily quota. The post-processing
+checks are unchanged and are the quality floor for weaker models.
+
+Why staged, and why at all: at roughly one cent per campaign on the cheapest Claude model,
+price is not the reason. The reasons are offline use and privacy with a local model, and
+vendor independence. Milestone 1 is judged on a strong model so that weak copy can be
+attributed to the prompt or the checks rather than the model; the fake generator in
+milestone 1 proves the interface does not carry Anthropic-specific shapes. Facts measured on
+2026-10-24 that a builder should expect: this machine has no GPU, so a local model runs on
+CPU at an unmeasured speed; OpenRouter's free tier allows 50 requests a day, which one
+20-draft campaign with retries can exceed; nine of its nineteen free models route to hosts
+that may train on prompts; Gemini's unpaid tier trains on input except for EEA, Swiss and UK
+users. The `trains_on_input` flag exists for exactly this.
 
 ### Milestone 2: one publisher
 
@@ -301,7 +347,7 @@ uv.lock
 justfile                setup | lint | typecheck | test | check (= lint + typecheck + test)
 .github/workflows/ci.yml   uv sync --frozen; just check; matrix 3.12, 3.13
 .env.example            ANTHROPIC_API_KEY=
-promo.toml              model, effort, max_tokens, variants_per_draft, network overrides
+promo.toml              generator profiles, variants_per_draft, timezone, network overrides
 brand.md                voice description + few-shot examples (tracked)
 campaigns/example/manifest.yaml
 drafts/                 gitignored, anchored as /drafts/
@@ -311,20 +357,25 @@ src/promo/
   cli.py                typer app; one subcommand per command above
   config.py             tomllib + python-dotenv
   schema.py             pydantic v2 models: Manifest, Product, Beat, DraftFrontMatter, Variants
-  generate.py           anthropic client, prompt assembly, structured output -> Variants
+  generate.py           prompt assembly, calls a Generator, post-processes -> draft file
+  generators/__init__.py   Generator protocol: generate(request) -> Variants + usage
+  generators/anthropic.py  the Claude implementation (M1)
+  generators/fake.py       deterministic in-process implementation for tests (M1)
+  generators/openai_compat.py   base_url + model + key implementation (M1b)
   postprocess.py        pure functions; the network limits table
   review.py             rich rendering + key loop; pyperclip in try/except; isatty guard
   publishers/__init__.py   Publisher protocol only (M1); adapters land here in M2
   store.py              M2 (SQLite); absent in M1
   assets/               M3; optional extra
-tests/                  pytest; a FakeClient satisfying a small protocol so generate.py is
+tests/                  pytest; generators/fake.py drives generate.py so the pipeline is
                         tested without network; clipboard and $EDITOR mocked; isatty tested
 docs/superpowers/specs/ this document
 ```
 
 Dependencies (current releases on 2026-10-24, all support a 3.12 floor): anthropic >=2.2,
 typer, rich, pydantic >=2, python-frontmatter, PyYAML, python-dotenv, pyperclip. Dev group:
-pytest, pytest-cov, ruff, mypy. Optional `assets`: playwright.
+pytest, pytest-cov, ruff, mypy. Optional `assets`: playwright. Milestone 1b adds the
+`openai` package, used only by the compatible generator against third-party endpoints.
 
 Gates: ruff (lint and format, line length 100, rules E F I UP B); mypy with
 `disallow_untyped_defs`, `check_untyped_defs`, `warn_unused_ignores`, and one
@@ -336,6 +387,10 @@ or pipenv (uv covers them), textual (a full TUI is over-build for a per-draft lo
 frameworks (one structured call per draft, no agent loop), Docker (local CLI), a daemon.
 
 ## 8. Constraints
+
+- Generation on a model other than Claude is a milestone-1b feature behind the same
+  interface; the Claude code path uses the Anthropic SDK and never an OpenAI-compatible
+  shim, and the compatible adapter never carries Anthropic-specific request shapes.
 
 - Public GitHub repository. Nothing confidential may be tracked: drafts, databases, env files
   stay ignored; `.env.example` is tracked.
@@ -363,7 +418,11 @@ frameworks (one structured call per draft, no agent loop), Docker (local CLI), a
 ## 10. Calls made by the author, open to override
 
 - Python floor 3.12, tested on 3.12 and 3.13.
-- Default model `claude-opus-5-5` with adaptive thinking; effort configurable.
+- Default model `claude-opus-5-5` with adaptive thinking; effort configurable. The owner
+  can make the near-free `claude-haiku-5-5` the default profile with one config line.
+- Provider support is staged: interface plus Anthropic and fake generators in milestone 1,
+  the OpenAI-compatible generator and the `trains_on_input` guard in milestone 1b.
+  (Negotiated with agy, who first proposed shipping the second generator in milestone 1.)
 - Network length-limit table values in section 6 are starting values; the table is the single
   source and its tests pin it.
 - Near-duplicate threshold and similarity measure are left to the builder, with the
