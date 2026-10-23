@@ -1,7 +1,7 @@
 # promo: a draft-and-approve agent for promoting products on social media
 
 Date: 2026-10-24
-Status: reviewed (builder check + six-round adversarial panel, GREEN), awaiting owner approval
+Status: APPROVED by the owner on 2026-10-24 (after builder check and adversarial panel, GREEN)
 Authors: Claude (driver) with agy (peer). Design and scaffold were negotiated over four consult
 rounds; the finished document went through a builder check and a six-round adversarial panel,
 the last two rounds covering items adopted from a second independent design (records in
