@@ -1,10 +1,11 @@
 # promo: a draft-and-approve agent for promoting products on social media
 
 Date: 2026-10-24
-Status: reviewed (builder check + four-round adversarial panel, GREEN), awaiting owner approval
+Status: reviewed (builder check + six-round adversarial panel, GREEN), awaiting owner approval
 Authors: Claude (driver) with agy (peer). Design and scaffold were negotiated over four consult
-rounds and the finished document went through a builder check and a four-round adversarial panel
-(records in `.clavity/seams/`, local and gitignored).
+rounds; the finished document went through a builder check and a six-round adversarial panel,
+the last two rounds covering items adopted from a second independent design (records in
+`.clavity/seams/`, local and gitignored).
 
 ## 1. Intent
 
@@ -37,6 +38,7 @@ Anti-goals (a build that does these has failed even if it works)
 - Identical text blasted to every network at the same moment.
 - Relying on the prompt to remember disclosures such as `#ad`.
 - Any path by which saving a file publishes something.
+- Paid advertising: creating, activating or funding ads. Never in this project.
 
 ## 3. Facts the design rests on (verified 2026-10-24)
 
@@ -85,6 +87,7 @@ product:
   target_url: string
   audience: string
   proof_points: [string]       # real quotes, numbers, testimonials; may be empty
+  prohibited_claims: [string]  # phrases that must never appear, e.g. "guaranteed"; may be empty
   disclosures: [string]        # injected verbatim by code, e.g. "#ad"
 brand_voice: brand.md           # path, relative to repo root
 launch_date: 2026-11-03         # ISO date; beat offsets are relative to it
@@ -150,6 +153,8 @@ Commands:
   `status: posted`. This closes the gap agy identified: once the owner
   pastes by hand and tweaks a hook in the network's editor, the local file and the live post
   diverge, and milestone 4 would have nothing true to read.
+- `promo unapprove <draft-id>`: returns an `approved` draft to `draft` status, keeping its
+  text and `chosen`, so a change of mind costs no regeneration. Refuses any other status.
 - `promo media <draft-id> <path>...`: records existing files into the draft's `media` list
   (paths are validated to exist and be under the repository or an absolute path the owner
   names). This is how a draft for a visual-first network becomes publishable; milestone 3's
@@ -167,7 +172,21 @@ Deterministic post-processing, in code, after generation and before writing:
   similarity above a threshold triggers regeneration of the later one, at most twice; after
   that the draft is written with `near_duplicate` in `warnings` and the review loop shows it),
 - narrative-progression check across beats (two beats with the same intent must not share an
-  opening sentence; same retry cap and `warnings` entry `repeats_beat`).
+  opening sentence; same retry cap and `warnings` entry `repeats_beat`),
+- prohibited-claims check: a case-insensitive match of any `prohibited_claims` phrase adds
+  `prohibited_claim` to `warnings` and the review loop shows the offending phrase,
+- link tagging: every occurrence of `target_url` in a variant is rewritten with
+  `utm_source=<network>`, `utm_medium=social`, `utm_campaign=<campaign>` and
+  `utm_content=<beat>` added to the query component (parsed and rebuilt with
+  `urllib.parse`, so a fragment stays after the query, an existing query string is kept, and
+  a `utm_*` key the owner already set is not overridden); the tagged URL counts as the
+  manifest URL for the grounding check.
+
+The checks run in a fixed order, and the order is part of the contract: disclosure
+injection, then link tagging, then the length-limit check against the final text, then the
+grounding, prohibited-claims, near-duplicate and narrative checks. Length is measured the way
+the network measures it: X and Mastodon count any URL as a fixed 23 characters (starting
+value, re-checked with the adapter), the others count the literal text.
 
 Every post-processing check is a pure function over strings and the manifest, so the whole
 layer is tested without the API.
@@ -178,9 +197,10 @@ becomes `posted` through `promo posted` (milestone 1, by hand) or through a succ
 `published_url`, `published_at` and `published_text`. `approved` becomes `scheduled` only
 through `promo schedule`; `scheduled` returns to `approved` through `promo queue cancel` or a
 permanent queue failure (which also adds `queue_failed` to `warnings`), and becomes `posted`
-when the queue run succeeds. Editing a file in `$EDITOR` never changes status. `--force`
-returns a `draft` or `approved` file to freshly generated `draft` state with `chosen`
-cleared; it refuses `scheduled` and `posted` files. `posted` is terminal. `publish`,
+when the queue run succeeds. Editing a file in `$EDITOR` never changes status. `approved`
+returns to `draft` through `promo unapprove` (text kept) or `--force` (text regenerated,
+`chosen` cleared); `--force` also applies to `draft` files and refuses `scheduled` and
+`posted` files. `posted` is terminal. `publish`,
 `schedule` and `posted` accept only a draft in `approved` status (which guarantees `chosen`
 is set, since `a` requires it) and therefore refuse `draft`, `scheduled` and `posted` files.
 `promo media` refuses `scheduled` and `posted` files, so the queue snapshot and the file
@@ -189,8 +209,9 @@ cannot drift apart.
 Storage in milestone 1 is the draft file itself. There is no database.
 
 Configuration: `ANTHROPIC_API_KEY` from `.env`; `promo.toml` holds `model` (default
-`claude-opus-5-5`), `effort`, `max_tokens`, `variants_per_draft` (default 3), and per-network
-overrides such as the X character limit for a premium account.
+`claude-opus-5-5`), `effort`, `max_tokens`, `variants_per_draft` (default 3), `timezone` (an
+IANA name, default the machine's local zone), and per-network overrides such as the X
+character limit for a premium account.
 
 Nothing in milestone 1 has credentials for, or code paths to, any social network.
 
@@ -208,7 +229,11 @@ Nothing in milestone 1 has credentials for, or code paths to, any social network
   No background watcher. No publish on status change. Ever.
 - `promo schedule <draft-id> --at <datetime>`: the same print-and-confirm as `publish`, but
   on `y` the exact confirmed text and the `media` paths are copied into the queue row as an
-  immutable snapshot, and the draft's status becomes `scheduled`. The confirmation happens
+  immutable snapshot, and the draft's status becomes `scheduled`. `--at` takes an ISO 8601
+  datetime; one without an offset is interpreted in the `timezone` named in `promo.toml`
+  (an IANA name, resolved with the standard library's zoneinfo, so daylight-saving
+  transitions are handled), and the confirmation prints both the local and the UTC time.
+  Queue rows store UTC. The confirmation happens
   here, once, by a human at a terminal; nothing enters the queue any other way.
 - A SQLite file (`promo.db`, gitignored) holds the queue. `promo queue run` publishes only
   rows that were explicitly scheduled and are now due, and it publishes the snapshot in the
@@ -258,7 +283,9 @@ Playwright is an optional extra (`promo[assets]`) so milestones 1 and 2 never in
 ### Milestone 4: the loop
 
 - `promo metrics`: for posted drafts older than 24 hours, call `fetch_metrics` and store the
-  result in SQLite with a timestamp.
+  result in SQLite with a timestamp and the source. A metric the network does not return is
+  stored and shown as unavailable, never as zero, so a missing number cannot pull a post out
+  of the top quartile.
 - `promo refresh-voice`: weekly, the top-quartile posts by engagement are proposed as the
   few-shot block in `brand.md`; the owner reviews the diff before it is written.
 
@@ -327,6 +354,11 @@ frameworks (one structured call per draft, no agent loop), Docker (local CLI), a
 - Front-matter is the milestone-1 store; SQLite arrives with the queue. (agy proposed;
   Claude accepted.)
 - No pre-commit; targeted mypy. (agy proposed; Claude accepted after measurement.)
+- Adopted from a second, independently produced design the owner shared
+  (`socialmediaagent/docs`, a hosted multi-tenant variant of the same idea): prohibited
+  claims, UTM link tagging, `promo unapprove`, unavailable-not-zero metrics, explicit
+  timezone handling, paid ads as an anti-goal. (Owner chose this list; the content-hash
+  binding of approvals was considered and left out.)
 
 ## 10. Calls made by the author, open to override
 
