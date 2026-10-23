@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 
@@ -102,7 +102,7 @@ def resolve_api_key(profile: Profile) -> str | None:
     """Load .env, then read the profile's key variable; None when it needs none."""
     if profile.api_key_env is None:
         return None
-    load_dotenv()
+    load_dotenv(find_dotenv(usecwd=True))
     value = os.environ.get(profile.api_key_env)
     if not value:
         raise ConfigError(f"environment variable {profile.api_key_env} is not set")

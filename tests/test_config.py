@@ -6,6 +6,13 @@ import pytest
 from promo.config import ConfigError, Profile, load_settings, resolve_api_key
 
 REPO_ROOT = Path(__file__).parent.parent
+_PROFILE_C = '[profiles.c]\nkind = "anthropic"\nmodel = "m"\n'
+
+
+def _unset_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Absent key, recorded by monkeypatch so a load_dotenv() leak is undone at teardown."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
 
 
 def test_default_profile_is_claude_opus(tmp_toml: Path) -> None:
@@ -22,7 +29,30 @@ def test_missing_api_key_names_variable(
     tmp_toml: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    _unset_key(monkeypatch)
+    with pytest.raises(ConfigError, match="ANTHROPIC_API_KEY"):
+        resolve_api_key(load_settings(tmp_toml).profile(None))
+
+
+def test_dotenv_in_cwd_is_honoured(
+    tmp_toml: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / ".env").write_text("ANTHROPIC_API_KEY=from-dotenv\n")
+    monkeypatch.chdir(tmp_path)
+    _unset_key(monkeypatch)
+    assert resolve_api_key(load_settings(tmp_toml).profile(None)) == "from-dotenv"
+
+
+def test_dotenv_outside_cwd_is_not_consulted(
+    tmp_toml: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / ".env").write_text("ANTHROPIC_API_KEY=leak\n")
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    monkeypatch.chdir(workdir)
+    _unset_key(monkeypatch)
     with pytest.raises(ConfigError, match="ANTHROPIC_API_KEY"):
         resolve_api_key(load_settings(tmp_toml).profile(None))
 
@@ -51,8 +81,8 @@ def test_explicit_timezone_is_kept(tmp_toml: Path) -> None:
 
 def test_invalid_timezone_rejected(tmp_path: Path) -> None:
     p = tmp_path / "promo.toml"
-    p.write_text('timezone = "Not/AZone"\n[generator]\ndefault = "c"\n')
-    with pytest.raises(ConfigError):
+    p.write_text(f'timezone = "Not/AZone"\n[generator]\ndefault = "c"\n{_PROFILE_C}')
+    with pytest.raises(ConfigError, match="timezone"):
         load_settings(p)
 
 
@@ -75,11 +105,19 @@ def test_missing_file_raises_config_error(tmp_path: Path) -> None:
         load_settings(tmp_path / "absent.toml")
 
 
-def test_variants_per_draft_bounds(tmp_path: Path) -> None:
+@pytest.mark.parametrize("n", [0, 10])
+def test_variants_per_draft_out_of_bounds_rejected(tmp_path: Path, n: int) -> None:
     p = tmp_path / "promo.toml"
-    p.write_text('variants_per_draft = 10\n[generator]\ndefault = "c"\n')
-    with pytest.raises(ConfigError):
+    p.write_text(f'variants_per_draft = {n}\n[generator]\ndefault = "c"\n{_PROFILE_C}')
+    with pytest.raises(ConfigError, match="variants_per_draft"):
         load_settings(p)
+
+
+@pytest.mark.parametrize("n", [1, 9])
+def test_variants_per_draft_in_bounds_accepted(tmp_path: Path, n: int) -> None:
+    p = tmp_path / "promo.toml"
+    p.write_text(f'variants_per_draft = {n}\n[generator]\ndefault = "c"\n{_PROFILE_C}')
+    assert load_settings(p).variants_per_draft == n
 
 
 def test_default_must_name_existing_profile(tmp_path: Path) -> None:
