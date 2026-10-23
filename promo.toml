@@ -1,0 +1,16 @@
+variants_per_draft = 3
+
+[generator]
+default = "claude"
+
+[profiles.claude]
+kind = "anthropic"
+model = "claude-opus-5-5"
+api_key_env = "ANTHROPIC_API_KEY"
+effort = "high"
+max_tokens = 4096
+trains_on_input = false
+
+# Example per-network override (premium X account limit).
+[networks.x]
+limit = 280
