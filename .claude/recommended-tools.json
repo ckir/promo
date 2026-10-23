@@ -1,0 +1,20 @@
+[
+  {
+    "name": "uv",
+    "why": "Python package and environment manager used by every just recipe",
+    "install": "curl -LsSf https://astral.sh/uv/install.sh | sh",
+    "in_path": "uv"
+  },
+  {
+    "name": "just",
+    "why": "Task runner; `just check` is the repo gate",
+    "install": "sudo snap install just --classic (or: cargo install just)",
+    "in_path": "just"
+  },
+  {
+    "name": "xsel",
+    "why": "review-loop clipboard copy (pyperclip backend on X11; wl-copy on Wayland)",
+    "install": "sudo apt install xsel (X11) or sudo apt install wl-clipboard (Wayland)",
+    "in_path": "xsel"
+  }
+]

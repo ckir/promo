@@ -1,0 +1,45 @@
+[project]
+name = "promo"
+version = "0.1.0"
+description = "Draft-and-approve promo agent CLI"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=2.2",
+    "typer",
+    "rich",
+    "pydantic>=2",
+    "python-frontmatter",
+    "pyyaml",
+    "python-dotenv",
+    "pyperclip",
+]
+
+[dependency-groups]
+dev = ["pytest", "pytest-cov", "ruff", "mypy"]
+
+[project.scripts]
+promo = "promo.cli:app"
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["docs", ".superpowers", ".clavity"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "pyperclip.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
