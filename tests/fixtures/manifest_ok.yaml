@@ -1,0 +1,26 @@
+product:
+  name: Acme Widget
+  tagline: Widgets that just work
+  problem_statement: Widgets break too often.
+  key_features:
+    - Unbreakable casing
+    - One-click setup
+  target_url: https://example.com/widget
+  audience: Makers and hobbyists
+  proof_points:
+    - "Used by 12 teams in beta"
+  prohibited_claims:
+    - guaranteed
+  disclosures: []
+brand_voice: brand.md
+launch_date: 2026-11-03
+beats:
+  - id: teaser
+    offset_days: -2
+    intent: teaser
+    networks: [x, linkedin]
+  - id: launch
+    offset_days: 0
+    intent: launch
+    networks: [x, mastodon, bluesky]
+    notes: Lead with the one-click setup.
