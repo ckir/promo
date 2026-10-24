@@ -3,6 +3,7 @@
 from typing import Literal, cast
 
 import anthropic
+import pydantic
 
 from promo.config import Profile
 from promo.drafts import Usage
@@ -44,6 +45,12 @@ class AnthropicGenerator:
             raise GenerationError(f"Anthropic API error {e.status_code}: {e.message}") from e
         except anthropic.APIConnectionError as e:
             raise GenerationError(f"Anthropic connection error: {e}") from e
+        except anthropic.APIError as e:
+            raise GenerationError(f"Anthropic API error: {e}") from e
+        except pydantic.ValidationError as e:
+            raise GenerationError(
+                "model output did not match the expected schema (possibly truncated at max_tokens)"
+            ) from e
         if response.stop_reason == "refusal":
             raise GenerationError("model refused the request")
         parsed = response.parsed_output

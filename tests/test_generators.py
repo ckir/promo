@@ -10,6 +10,7 @@ from promo.config import Profile
 from promo.generators import (
     GenerationError,
     GenerationRequest,
+    Generator,
     Variants,
     make_generator,
 )
@@ -174,7 +175,29 @@ def test_anthropic_generator_rejects_unknown_effort() -> None:
 
 def test_anthropic_generator_builds_default_client() -> None:
     gen = AnthropicGenerator(_profile(), "k")
-    assert isinstance(gen, AnthropicGenerator)
+    assert isinstance(gen._client, anthropic.Anthropic)
+
+
+def test_implementations_satisfy_generator_protocol() -> None:
+    g: Generator = FakeGenerator()
+    g2: Generator = AnthropicGenerator(_profile(), "k")
+    assert g is not g2
+
+
+def test_anthropic_generator_wraps_response_validation_error() -> None:
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    err = anthropic.APIResponseValidationError(httpx2.Response(200, request=request), body=None)
+    with pytest.raises(GenerationError) as info:
+        _gen(StubClient(error=err)).generate(_req())
+    assert info.value.__cause__ is err
+
+
+def test_anthropic_generator_wraps_pydantic_validation_error() -> None:
+    with pytest.raises(ValidationError) as orig:
+        Variants.model_validate_json('{"variants": []}')
+    with pytest.raises(GenerationError, match="schema") as info:
+        _gen(StubClient(error=orig.value)).generate(_req())
+    assert info.value.__cause__ is orig.value
 
 
 def test_make_generator_anthropic() -> None:
