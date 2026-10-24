@@ -29,7 +29,7 @@ _ESC_SEQ = re.compile(
     r"|\x1b[@-Z\\-_]"  # other two-byte escapes
 )
 _CONTROL = re.compile(
-    "[\x00-\x08\x0b-\x1f\x7f-\x9f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]"
+    "[\x00-\x08\x0b-\x1f\x7f-\x9f\u061c\u200b\u200e\u200f\u2060\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]"
 )
 
 

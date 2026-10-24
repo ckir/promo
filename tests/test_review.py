@@ -319,8 +319,25 @@ def test_non_ascii_digit_keys_are_unknown_not_fatal(drafts_tree: DraftsTree, key
     assert summary.skipped == 3
 
 
-def test_sanitize_strips_bidi_and_zero_width() -> None:
-    assert sanitize("a‮b​c d e﻿⁦f") == "abcdef"
+@pytest.mark.parametrize(
+    "code",
+    [
+        0x200B, 0x200E, 0x200F, 0x202A, 0x202B, 0x202C, 0x202D, 0x202E, 0x2060,
+        0x2066, 0x2067, 0x2068, 0x2069, 0x2028, 0x2029, 0xFEFF, 0x061C,
+    ],
+)  # fmt: skip
+def test_sanitize_strips_bidi_and_invisible(code: int) -> None:
+    assert sanitize(f"a{chr(code)}b") == "ab"
+
+
+@pytest.mark.parametrize("code", [0x200C, 0x200D])
+def test_sanitize_keeps_joiners(code: int) -> None:
+    assert sanitize(f"a{chr(code)}b") == f"a{chr(code)}b"
+
+
+def test_sanitize_keeps_zwj_emoji_sequence() -> None:
+    family = "\U0001f468\u200d\U0001f469\u200d\U0001f467"
+    assert sanitize(family) == family
 
 
 def test_terminal_io_keyboard_interrupt_acts_like_eof(monkeypatch: pytest.MonkeyPatch) -> None:
