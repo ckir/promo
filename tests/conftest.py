@@ -73,3 +73,14 @@ def tmp_draft(tmp_path: Path) -> Path:
     path = tmp_path / "drafts" / "camp" / "beat" / "x.md"
     save(Draft(meta=meta, variants=["first", "second", "third"], path=path))
     return path
+
+
+@pytest.fixture
+def manifest(fixture_ok: Path):
+    from promo.schema import load_manifest
+
+    m = load_manifest(fixture_ok)
+    product = m.product.model_copy(
+        update={"proof_points": ["Cuts setup time by 40%"], "target_url": "https://e.com/p"}
+    )
+    return m.model_copy(update={"product": product})
