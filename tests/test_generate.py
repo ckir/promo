@@ -305,6 +305,7 @@ def test_too_long_regenerates_twice_then_warns(campaign_dir):
     d = drafts.load(_path(campaign_dir, "teaser", "bluesky"))
     assert d.meta.warnings == ["too_long"]
     assert d.meta.usage.input_tokens == sum((len(r.system + r.user) // 4) for r in fake.requests)
+    assert d.meta.usage.output_tokens == 3 * (sum(len(v) for v in long) // 4)
 
 
 def test_wrong_variant_count_retries_then_warns(campaign_dir):
@@ -482,3 +483,36 @@ def test_brief_carries_tagged_url_once_and_reply_is_not_double_tagged(campaign_d
     d = drafts.load(_path(campaign_dir, beat.id, network.value))
     assert all(v.count("utm_") == tagged.count("utm_") for v in d.variants)
     assert all(tagged in v for v in d.variants)
+
+
+def test_regenerate_one_raises_when_beat_left_the_manifest(campaign_dir):
+    run_draft(
+        campaign_dir.manifest,
+        campaign_dir.campaign,
+        campaign_dir.settings,
+        None,
+        FakeGenerator(),
+        campaign_dir.drafts_root,
+        beat="teaser",
+        network="x",
+        force=False,
+        dry_run=False,
+        now=NOW,
+    )
+    path = _path(campaign_dir, "teaser", "x")
+    before = path.read_bytes()
+    calls: list[object] = []
+
+    def factory(profile: Profile, key: str | None) -> FakeGenerator:
+        calls.append(profile)
+        return FakeGenerator()
+
+    gone = campaign_dir.with_beats(
+        [{"id": "other", "offset_days": -2, "intent": "teaser", "networks": ["x"]}]
+    )
+    with pytest.raises(ManifestError, match="not in the manifest"):
+        regenerate_one(
+            path, gone, campaign_dir.settings, "x", NOW, generator_factory=factory
+        )  # fmt: skip
+    assert calls == []
+    assert path.read_bytes() == before

@@ -307,3 +307,16 @@ def test_load_wraps_non_utf8_file(tmp_path: Path):
     bad.write_bytes(b"\xff\xfe bad")
     with pytest.raises(DraftError, match="cannot read draft"):
         load(bad)
+
+
+def test_unapprove_and_mark_posted_refuse_posted_draft(tmp_draft: Path):
+    _choose(tmp_draft)
+    approve(tmp_draft)
+    mark_posted(tmp_draft, "https://x/1", None, NOW)
+    before = tmp_draft.read_bytes()
+    with pytest.raises(DraftError):
+        unapprove(tmp_draft)
+    with pytest.raises(DraftError):
+        mark_posted(tmp_draft, "https://x/2", "other", NOW)
+    assert tmp_draft.read_bytes() == before
+    assert load(tmp_draft).meta.published_url == "https://x/1"

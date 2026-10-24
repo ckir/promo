@@ -202,3 +202,8 @@ def test_disclosure_word_boundaries():
     assert inject_disclosures("Try #AD", ["#ad"]) == "Try #AD"
     assert inject_disclosures("Sponsored.", ["Sponsored."]) == "Sponsored."
     assert inject_disclosures("Hello\n", ["#ad"]) == "Hello\n#ad"
+
+
+def test_tag_links_empty_target_url_returns_text_untouched():
+    text = "no link here, just words"
+    assert tag_links(text, "", Network.x, "camp", "launch") == text
