@@ -14,7 +14,14 @@ from promo import drafts
 from promo.cli import app
 from promo.drafts import Status
 from promo.generators.fake import FakeGenerator
-from promo.review import ReviewSummary, review, sanitize, select_for_review
+from promo.review import (
+    ReviewIOError,
+    ReviewSummary,
+    TerminalIO,
+    review,
+    sanitize,
+    select_for_review,
+)
 
 NOW = datetime(2026, 10, 24, 12, 0, tzinfo=UTC)
 
@@ -270,3 +277,56 @@ def test_review_cli_refuses_non_tty(
     assert result.exit_code == 1
     assert "promo review needs an interactive terminal" in result.output
     assert {p: p.stat().st_mtime_ns for p in drafts_tree.paths.values()} == before
+
+
+def test_edit_failure_shows_error_and_continues(drafts_tree: DraftsTree) -> None:
+    def boom(p: Path) -> None:
+        raise ReviewIOError("cannot run editor 'nope'")
+
+    io = ScriptedIO(["e", "s", "s", "s", "q"], edit=boom)
+    summary = _run(drafts_tree, io)
+    assert "cannot run editor 'nope'" in io.output
+    assert summary.skipped == 3
+
+
+def test_terminal_edit_nonexistent_editor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("EDITOR", "/nonexistent/ed")
+    with pytest.raises(ReviewIOError, match="cannot run editor"):
+        TerminalIO().edit(tmp_path / "x.md")
+
+
+def test_terminal_edit_empty_editor_falls_back_to_vi(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setenv("EDITOR", "")
+    monkeypatch.setattr("promo.review.subprocess.run", lambda argv, check: calls.append(argv))
+    TerminalIO().edit(tmp_path / "x.md")
+    assert calls == [["vi", str(tmp_path / "x.md")]]
+
+
+def test_terminal_edit_unbalanced_quote(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("EDITOR", "vi 'x")
+    with pytest.raises(ReviewIOError, match="cannot run editor"):
+        TerminalIO().edit(tmp_path / "x.md")
+
+
+@pytest.mark.parametrize("key", ["²", "٣", "0"])
+def test_non_ascii_digit_keys_are_unknown_not_fatal(drafts_tree: DraftsTree, key: str) -> None:
+    io = ScriptedIO([key, "s", "s", "s"])
+    summary = _run(drafts_tree, io)
+    assert "unknown key" in io.output
+    assert summary.skipped == 3
+
+
+def test_sanitize_strips_bidi_and_zero_width() -> None:
+    assert sanitize("a‮b​c d e﻿⁦f") == "abcdef"
+
+
+def test_terminal_io_keyboard_interrupt_acts_like_eof(monkeypatch: pytest.MonkeyPatch) -> None:
+    def interrupt(prompt: str = "") -> str:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("builtins.input", interrupt)
+    assert TerminalIO().read_key() == "q"
+    assert TerminalIO().read_line("note: ") == ""

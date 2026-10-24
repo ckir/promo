@@ -28,7 +28,13 @@ _ESC_SEQ = re.compile(
     r"|\x1b\[[0-?]*[ -/]*[@-~]"  # CSI
     r"|\x1b[@-Z\\-_]"  # other two-byte escapes
 )
-_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+_CONTROL = re.compile(
+    "[\x00-\x08\x0b-\x1f\x7f-\x9f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]"
+)
+
+
+class ReviewIOError(Exception):
+    """A terminal helper (such as the editor) could not be run."""
 
 
 def sanitize(text: str) -> str:
@@ -51,14 +57,14 @@ class TerminalIO:
     def read_key(self) -> str:
         try:
             line = input("> ")
-        except EOFError:
+        except (EOFError, KeyboardInterrupt):
             return "q"
         return line.strip()[:1].lower() if line.strip() else ""
 
     def read_line(self, prompt: str) -> str:
         try:
             return input(prompt)
-        except EOFError:
+        except (EOFError, KeyboardInterrupt):
             return ""
 
     def print(self, renderable: Any) -> None:
@@ -72,7 +78,14 @@ class TerminalIO:
         return True
 
     def edit(self, path: Path) -> None:
-        subprocess.run([*shlex.split(os.environ.get("EDITOR", "vi")), str(path)], check=False)
+        editor = os.environ.get("EDITOR") or "vi"
+        try:
+            argv = shlex.split(editor)
+            if not argv:
+                argv = ["vi"]
+            subprocess.run([*argv, str(path)], check=False)
+        except (OSError, ValueError) as e:
+            raise ReviewIOError(f"cannot run editor {editor!r}: {e}") from e
 
 
 @dataclass
@@ -166,12 +179,15 @@ def review(
                 summary.skipped += 1
                 break
             if key == "e":
-                io.edit(path)
+                try:
+                    io.edit(path)
+                except ReviewIOError as e:
+                    _error(io, str(e))
                 continue
             if draft is None:
                 _error(io, "the draft is unreadable: only e, s and q are available")
                 continue
-            if key.isdigit() and key != "0":
+            if len(key) == 1 and key in "123456789":
                 n = int(key)
                 if n > len(draft.variants):
                     _error(io, f"no variant {n}")
