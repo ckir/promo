@@ -300,3 +300,10 @@ def test_parse_rejects_hand_edited_empty_variant():
     text = render(_meta(), ["a", "b", "c"]).replace("\nb\n", "\n \n")
     with pytest.raises(DraftError, match="empty"):
         parse(text, Path("x.md"))
+
+
+def test_load_wraps_non_utf8_file(tmp_path: Path):
+    bad = tmp_path / "bad.md"
+    bad.write_bytes(b"\xff\xfe bad")
+    with pytest.raises(DraftError, match="cannot read draft"):
+        load(bad)

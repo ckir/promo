@@ -124,7 +124,9 @@ def test_force_regenerates_draft_and_approved_but_never_posted(campaign_dir):
         _id(campaign_dir, "launch", "linkedin"),
     ]
     assert posted.read_bytes() == posted_bytes
-    assert drafts.load(_path(campaign_dir, "teaser", "x")).meta.status is Status.draft
+    forced = drafts.load(_path(campaign_dir, "teaser", "x"))
+    assert forced.meta.status is Status.draft
+    assert forced.meta.chosen is None
     assert drafts.load(_path(campaign_dir, "launch", "linkedin")).meta.status is Status.scheduled
 
 
@@ -382,3 +384,57 @@ def test_regenerate_one_uses_recorded_profile_and_resets_chosen(campaign_dir, mo
             path, campaign_dir.manifest, campaign_dir.settings, "x", later,
             generator_factory=factory,
         )  # fmt: skip
+
+
+def test_unreadable_sibling_file_is_ignored_and_untouched(campaign_dir):
+    garbage = _path(campaign_dir, "teaser", "x")
+    garbage.parent.mkdir(parents=True)
+    garbage.write_bytes(b"\xff\xfe bad")
+    report = _run(campaign_dir, FakeGenerator())
+    assert _id(campaign_dir, "teaser", "x") in report.skipped
+    assert len(report.generated) == 3
+    assert garbage.read_bytes() == b"\xff\xfe bad"
+    forced = _run(campaign_dir, FakeGenerator(), force=True)
+    assert _id(campaign_dir, "teaser", "x") in forced.skipped
+    assert garbage.read_bytes() == b"\xff\xfe bad"
+    plans = plan_run(
+        campaign_dir.manifest,
+        campaign_dir.campaign,
+        campaign_dir.drafts_root,
+        beat="teaser",
+        network="x",
+        force=True,
+    )
+    assert [p.action for p in plans] == ["refuse-status"]
+
+
+def test_regenerate_one_refuses_trains_on_input_when_manifest_now_confidential(campaign_dir):
+    open_manifest = campaign_dir.manifest.model_copy(update={"confidential": False})
+    run_draft(
+        open_manifest,
+        campaign_dir.campaign,
+        campaign_dir.settings,
+        "trainer",
+        FakeGenerator(),
+        campaign_dir.drafts_root,
+        beat="teaser",
+        network="x",
+        force=False,
+        dry_run=False,
+        now=NOW,
+    )
+    calls: list[object] = []
+
+    def factory(profile: Profile, key: str | None) -> FakeGenerator:
+        calls.append(profile)
+        return FakeGenerator()
+
+    path = _path(campaign_dir, "teaser", "x")
+    before = path.read_bytes()
+    with pytest.raises(ConfigError, match="trainer"):
+        regenerate_one(
+            path, campaign_dir.manifest, campaign_dir.settings, "x", NOW,
+            generator_factory=factory,
+        )  # fmt: skip
+    assert calls == []
+    assert path.read_bytes() == before

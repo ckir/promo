@@ -177,7 +177,7 @@ def parse(text: str, path: Path) -> Draft:
 def load(path: Path) -> Draft:
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError as e:
+    except (OSError, UnicodeDecodeError) as e:
         raise DraftError(f"{path}: cannot read draft: {e}") from e
     return parse(text, path)
 

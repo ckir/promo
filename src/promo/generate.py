@@ -85,7 +85,7 @@ def _action_for(path: Path, force: bool) -> Action:
     try:
         status = drafts.load(path).meta.status
     except DraftError:
-        return "generate"
+        return "refuse-status"
     if status is Status.posted:
         return "skip-posted"
     if status is Status.scheduled:
@@ -273,6 +273,14 @@ def _meta(
     )
 
 
+def _guard_confidential(profile: Profile, name: str, manifest: Manifest) -> None:
+    if profile.trains_on_input and manifest.confidential:
+        raise ConfigError(
+            f"profile {name!r} trains on input and the campaign is confidential; "
+            "set `confidential: false` in the manifest to allow it"
+        )
+
+
 def run_draft(
     manifest: Manifest,
     campaign: str,
@@ -291,11 +299,7 @@ def run_draft(
         raise ManifestError(f"campaign name {campaign!r} must match [a-z0-9-]+")
     profile = settings.profile(profile_name)
     resolved_name = settings.default_profile if profile_name is None else profile_name
-    if profile.trains_on_input and manifest.confidential:
-        raise ConfigError(
-            f"profile {resolved_name!r} trains on input and the campaign is confidential; "
-            "set `confidential: false` in the manifest to allow it"
-        )
+    _guard_confidential(profile, resolved_name, manifest)
     plans = plan_run(manifest, campaign, drafts_root, beat=beat, network=network, force=force)
     report = RunReport()
     todo = [p for p in plans if p.action == "generate"]
@@ -354,7 +358,7 @@ def regenerate_one(
 ) -> Draft:
     draft = drafts.load(path)
     if draft.meta.status is not Status.draft:
-        raise DraftError(f"{path}: cannot regenerate a draft with status {draft.meta.status}")
+        raise DraftError(f"{path}: cannot regenerate a draft with status {draft.meta.status.value}")
     beat = next((b for b in manifest.beats if b.id == draft.meta.beat), None)
     if beat is None or draft.meta.network not in beat.networks:
         raise ManifestError(
@@ -363,6 +367,7 @@ def regenerate_one(
     network = draft.meta.network
     campaign = draft.meta.campaign
     profile = settings.profile(draft.meta.profile)
+    _guard_confidential(profile, draft.meta.profile, manifest)
     generator = generator_factory(profile, resolve_api_key(profile))
     prose, examples = load_brand_voice(manifest.brand_voice)
     request = build_request(
