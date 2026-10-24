@@ -1,0 +1,28 @@
+product:
+  name: Lumen Notes
+  tagline: Meeting notes that write themselves.
+  problem_statement: Teams lose decisions and action items because nobody has time to write good meeting notes.
+  key_features:
+    - Automatic summaries of recorded meetings
+    - Action items extracted and assigned to owners
+    - Searchable archive of past decisions
+  target_url: https://example.com/lumen-notes
+  audience: Engineering and product managers at small software teams
+  proof_points:
+    - Used internally by the Lumen team for every weekly meeting since January
+  prohibited_claims:
+    - Never claim the summaries are always accurate or replace human review
+  disclosures:
+    - "#ad"
+brand_voice: brand.md
+confidential: true
+launch_date: 2027-03-01
+beats:
+  - id: teaser
+    offset_days: -2
+    intent: teaser
+    networks: [x, linkedin]
+  - id: launch
+    offset_days: 0
+    intent: launch
+    networks: [x, linkedin]
