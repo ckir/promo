@@ -44,7 +44,7 @@ def sanitize(text: str) -> str:
 
 class ReviewIO(Protocol):
     def read_key(self) -> str: ...
-    def read_line(self, prompt: str) -> str: ...
+    def read_line(self, prompt: str) -> str | None: ...
     def print(self, renderable: Any) -> None: ...
     def copy(self, text: str) -> bool: ...
     def edit(self, path: Path) -> None: ...
@@ -61,11 +61,12 @@ class TerminalIO:
             return "q"
         return line.strip()[:1].lower() if line.strip() else ""
 
-    def read_line(self, prompt: str) -> str:
+    def read_line(self, prompt: str) -> str | None:
+        """The entered line, or None when the user cancelled (EOF or Ctrl-C)."""
         try:
             return input(prompt)
         except (EOFError, KeyboardInterrupt):
-            return ""
+            return None
 
     def print(self, renderable: Any) -> None:
         self._console.print(renderable)
@@ -84,6 +85,8 @@ class TerminalIO:
             if not argv:
                 argv = ["vi"]
             subprocess.run([*argv, str(path)], check=False)
+        except KeyboardInterrupt as e:
+            raise ReviewIOError("editor interrupted") from e
         except (OSError, ValueError) as e:
             raise ReviewIOError(f"cannot run editor {editor!r}: {e}") from e
 
@@ -207,6 +210,9 @@ def review(
                     io.print(Text(sanitize(text)))
             elif key == "r":
                 note = io.read_line("note: ")
+                if note is None:
+                    io.print(Text("cancelled"))
+                    continue
                 try:
                     regenerate_one(
                         path, manifest, settings, note, now, generator_factory=generator_factory

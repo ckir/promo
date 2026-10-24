@@ -30,13 +30,13 @@ class ScriptedIO:
     def __init__(
         self,
         keys: list[str],
-        lines: list[str] | None = None,
+        lines: list[str | None] | None = None,
         *,
         copy_ok: bool = True,
         edit: Callable[[Path], None] | None = None,
     ) -> None:
         self.keys = list(keys)
-        self.lines = list(lines or [])
+        self.lines: list[str | None] = list(lines or [])
         self.copy_ok = copy_ok
         self.edit_cb = edit
         self.printed: list[str] = []
@@ -46,8 +46,8 @@ class ScriptedIO:
     def read_key(self) -> str:
         return self.keys.pop(0) if self.keys else "q"
 
-    def read_line(self, prompt: str) -> str:
-        return self.lines.pop(0) if self.lines else ""
+    def read_line(self, prompt: str) -> str | None:
+        return self.lines.pop(0) if self.lines else None
 
     def print(self, renderable: Any) -> None:
         buf = StringIO()
@@ -215,7 +215,7 @@ def test_regenerate_shows_error_and_continues_on_generation_error(
 ) -> None:
     path = drafts_tree.paths["draft"]
     original = path.read_text(encoding="utf-8")
-    io = ScriptedIO(["s", "s", "r", "2", "q"])
+    io = ScriptedIO(["s", "s", "r", "2", "q"], [""])
     summary = _run(drafts_tree, io, generator=FakeGenerator(fail_after=0))
     assert "fake generator failure" in io.output
     assert summary.regenerated == 0
@@ -329,4 +329,77 @@ def test_terminal_io_keyboard_interrupt_acts_like_eof(monkeypatch: pytest.Monkey
 
     monkeypatch.setattr("builtins.input", interrupt)
     assert TerminalIO().read_key() == "q"
-    assert TerminalIO().read_line("note: ") == ""
+    assert TerminalIO().read_line("note: ") is None
+
+
+def test_terminal_io_eof_cancels_note(monkeypatch: pytest.MonkeyPatch) -> None:
+    def eof(prompt: str = "") -> str:
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", eof)
+    assert TerminalIO().read_line("note: ") is None
+    assert TerminalIO().read_key() == "q"
+
+
+def test_cancelled_note_does_not_regenerate(drafts_tree: DraftsTree) -> None:
+    path = drafts_tree.paths["draft"]
+    before = (path.read_bytes(), path.stat().st_mtime_ns)
+    gen = FakeGenerator()
+    called: list[int] = []
+
+    def factory(profile: object, key: object) -> FakeGenerator:
+        called.append(1)
+        return gen
+
+    c = drafts_tree.campaign
+    io = ScriptedIO(["s", "s", "r", "q"], [None])
+    summary = review(
+        c.drafts_root,
+        c.campaign,
+        io,
+        all_=False,
+        manifest=c.manifest,
+        settings=c.settings,
+        now=NOW,
+        generator_factory=factory,  # type: ignore[arg-type]
+    )
+    assert "cancelled" in io.output
+    assert called == [] and gen.requests == []
+    assert summary.regenerated == 0
+    assert (path.read_bytes(), path.stat().st_mtime_ns) == before
+
+
+def test_empty_note_line_still_regenerates(drafts_tree: DraftsTree) -> None:
+    gen = FakeGenerator(responses=[["n1", "n2", "n3"]])
+    io = ScriptedIO(["s", "s", "r", "q"], [""])
+    summary = _run(drafts_tree, io, generator=gen)
+    assert summary.regenerated == 1
+    assert len(gen.requests) == 1
+
+
+def test_terminal_edit_whitespace_editor_falls_back_to_vi(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setenv("EDITOR", "   ")
+    monkeypatch.setattr("promo.review.subprocess.run", lambda argv, check: calls.append(argv))
+    TerminalIO().edit(tmp_path / "x.md")
+    assert calls == [["vi", str(tmp_path / "x.md")]]
+
+
+def test_terminal_edit_nonzero_exit_is_ignored(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("EDITOR", "false")
+    TerminalIO().edit(tmp_path / "x.md")
+
+
+def test_terminal_edit_keyboard_interrupt_is_review_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def interrupt(argv: list[str], check: bool) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("promo.review.subprocess.run", interrupt)
+    with pytest.raises(ReviewIOError, match="editor interrupted"):
+        TerminalIO().edit(tmp_path / "x.md")
