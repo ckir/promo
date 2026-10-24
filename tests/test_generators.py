@@ -179,9 +179,10 @@ def test_anthropic_generator_builds_default_client() -> None:
 
 
 def test_implementations_satisfy_generator_protocol() -> None:
-    g: Generator = FakeGenerator()
-    g2: Generator = AnthropicGenerator(_profile(), "k")
-    assert g is not g2
+    assert isinstance(FakeGenerator(), Generator)
+    stub = StubClient(_response())
+    assert isinstance(_gen(stub), Generator)
+    assert not isinstance(object(), Generator)
 
 
 def test_anthropic_generator_wraps_response_validation_error() -> None:
@@ -197,6 +198,7 @@ def test_anthropic_generator_wraps_pydantic_validation_error() -> None:
         Variants.model_validate_json('{"variants": []}')
     with pytest.raises(GenerationError, match="schema") as info:
         _gen(StubClient(error=orig.value)).generate(_req())
+    assert "max_tokens" not in str(info.value)
     assert info.value.__cause__ is orig.value
 
 

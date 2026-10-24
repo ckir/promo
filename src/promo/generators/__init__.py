@@ -1,6 +1,6 @@
 """Generator protocol and factory."""
 
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
@@ -28,6 +28,7 @@ class GenerationResult(BaseModel):
     model: str
 
 
+@runtime_checkable
 class Generator(Protocol):
     def generate(self, request: GenerationRequest) -> GenerationResult: ...
 

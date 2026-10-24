@@ -49,7 +49,8 @@ class AnthropicGenerator:
             raise GenerationError(f"Anthropic API error: {e}") from e
         except pydantic.ValidationError as e:
             raise GenerationError(
-                "model output did not match the expected schema (possibly truncated at max_tokens)"
+                "model output did not match the expected schema "
+                "(it may have been truncated, refused or malformed)"
             ) from e
         if response.stop_reason == "refusal":
             raise GenerationError("model refused the request")
