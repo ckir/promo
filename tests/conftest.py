@@ -57,7 +57,7 @@ def tmp_draft(tmp_path: Path) -> Path:
     from promo.schema import Network
 
     meta = DraftMeta(
-        id="camp--beat--x",
+        id="camp/beat/x",
         campaign="camp",
         beat="beat",
         network=Network.x,
@@ -70,6 +70,6 @@ def tmp_draft(tmp_path: Path) -> Path:
         usage=Usage(input_tokens=10, output_tokens=20),
         needs_media=False,
     )
-    path = tmp_path / "drafts" / "camp--beat--x.md"
+    path = tmp_path / "drafts" / "camp" / "beat" / "x.md"
     save(Draft(meta=meta, variants=["first", "second", "third"], path=path))
     return path

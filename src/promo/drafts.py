@@ -71,10 +71,13 @@ class Draft:
 
 
 def draft_id(campaign: str, beat: str, network: Network) -> str:
-    return f"{campaign}--{beat}--{network.value}"
+    return f"{campaign}/{beat}/{network.value}"
 
 
 def draft_path(root: Path, draft_id: str) -> Path:
+    parts = draft_id.split("/")
+    if draft_id.startswith("/") or ".." in parts or "" in parts:
+        raise DraftError(f"unsafe draft id: {draft_id!r}")
     return root / f"{draft_id}.md"
 
 

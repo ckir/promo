@@ -29,7 +29,7 @@ NOW = datetime(2026, 10, 25, 12, 0, tzinfo=UTC)
 
 def _meta(**kw: object) -> DraftMeta:
     base: dict[str, object] = {
-        "id": "camp--beat--x",
+        "id": "camp/beat/x",
         "campaign": "camp",
         "beat": "beat",
         "network": Network.x,
@@ -48,7 +48,14 @@ def _meta(**kw: object) -> DraftMeta:
 
 def test_ids_and_paths(tmp_path: Path):
     did = draft_id("camp", "beat", Network.x)
-    assert draft_path(tmp_path, did) == tmp_path / f"{did}.md"
+    assert draft_path(tmp_path, did) == tmp_path / "camp" / "beat" / "x.md"
+    assert draft_path(Path("drafts"), did) == Path("drafts/camp/beat/x.md")
+
+
+@pytest.mark.parametrize("bad", ["../x", "a/../b", "/abs/x", "a//b"])
+def test_draft_path_rejects_unsafe_ids(tmp_path: Path, bad: str):
+    with pytest.raises(DraftError):
+        draft_path(tmp_path, bad)
 
 
 def test_render_parse_roundtrip():
