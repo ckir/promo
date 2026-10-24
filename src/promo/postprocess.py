@@ -41,7 +41,7 @@ def tag_links(text: str, target_url: str, network: Network, campaign: str, beat:
     if not target_url:
         return text
     tagged = _tag_one(target_url, network, campaign, beat)
-    pattern = re.compile(re.escape(target_url) + r"(?![\w/~%:&=+-]|\.\w|[?#]\S)", re.I)
+    pattern = re.compile(re.escape(target_url) + r"(?![\w/~%=+-]|[.:&]\w|[?#]\S)")
     return pattern.sub(lambda _m: tagged, text)
 
 

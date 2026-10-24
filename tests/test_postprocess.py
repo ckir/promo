@@ -162,11 +162,24 @@ def test_tag_links_trailing_punctuation_and_repeats():
     assert out.count("utm_source=x") == 2
 
 
-def test_tag_links_no_path_and_case_insensitive():
+def test_tag_links_no_path_and_exact_case():
     out = tag_links("visit https://e.com now", "https://e.com", Network.x, "c", "b")
-    assert "utm_source=x" in out and out.startswith("visit https://e.com?utm_")
-    out = tag_links("visit HTTPS://E.COM/p now", "https://e.com/p", Network.x, "c", "b")
-    assert "utm_source=x" in out
+    assert out.startswith("visit https://e.com?utm_") and "utm_source=x" in out
+    text = "see https://e.com/pricing now"
+    assert tag_links(text, "https://e.com/Pricing", Network.x, "c", "b") == text
+
+
+def test_tag_links_colon_and_ampersand():
+    tagged = "?utm_source=x&utm_medium=social&utm_campaign=c&utm_content=b"
+    t = "https://e.com/p"
+    assert tag_links("Try https://e.com/p: it", t, Network.x, "c", "b") == (
+        f"Try https://e.com/p{tagged}: it"
+    )
+    assert tag_links("a https://e.com/p & more", t, Network.x, "c", "b") == (
+        f"a https://e.com/p{tagged} & more"
+    )
+    for same in ("go https://e.com/p:80 x", "go https://e.com/p&x=1 y"):
+        assert tag_links(same, t, Network.x, "c", "b") == same
 
 
 def test_number_token_membership_not_substring(manifest):
