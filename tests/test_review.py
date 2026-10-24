@@ -420,3 +420,20 @@ def test_terminal_edit_keyboard_interrupt_is_review_error(
     monkeypatch.setattr("promo.review.subprocess.run", interrupt)
     with pytest.raises(ReviewIOError, match="editor interrupted"):
         TerminalIO().edit(tmp_path / "x.md")
+
+
+def test_non_draft_status_refuses_choose_and_regenerate(drafts_tree: DraftsTree) -> None:
+    path = drafts_tree.paths["approved_clean"]
+    before = path.read_text(encoding="utf-8")
+    did = drafts.load(path).meta.id
+    gen = FakeGenerator()
+    io = ScriptedIO(["3", "r", "a", "q"], ["note"])
+    _run(drafts_tree, io, all_=True, generator=gen)
+    after = drafts.load(path)
+    assert after.meta.chosen == 1
+    assert after.meta.status is Status.approved
+    assert path.read_text(encoding="utf-8") == before
+    assert gen.requests == []
+    assert io.output.count(f"run `promo unapprove {did}` first") >= 2
+    assert "already approved" in io.output
+    assert "cannot approve a draft with status approved" not in io.output

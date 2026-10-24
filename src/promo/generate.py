@@ -340,6 +340,11 @@ def run_draft(
             base_meta=None,
         )
         report.calls += outcome.calls
+        if plan.path.exists():
+            try:
+                outcome.meta.media = list(drafts.load(plan.path).meta.media)
+            except DraftError:
+                pass
         drafts.save(Draft(meta=outcome.meta, variants=outcome.variants, path=plan.path))
         report.generated.append(did)
         if outcome.meta.warnings:

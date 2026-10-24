@@ -70,3 +70,18 @@ def test_unknown_network_rejected(tmp_path: Path, fixture_ok: Path) -> None:
     p = _write(tmp_path, fixture_ok, lambda d: d["beats"][0].update(networks=["youtube"]))
     with pytest.raises(ManifestError):
         load_manifest(p)
+
+
+def test_binary_manifest_raises_manifest_error(tmp_path: Path) -> None:
+    p = tmp_path / "manifest.yaml"
+    p.write_bytes(b"\xff\xfe\x00")
+    with pytest.raises(ManifestError) as exc:
+        load_manifest(p)
+    assert str(p) in str(exc.value)
+
+
+def test_example_manifest_prohibited_claims_match_substrings() -> None:
+    from promo.postprocess import prohibited_matches
+
+    m = load_manifest(Path(__file__).parent.parent / "campaigns" / "example" / "manifest.yaml")
+    assert prohibited_matches("It is always accurate", m.product.prohibited_claims)

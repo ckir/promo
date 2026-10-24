@@ -190,6 +190,14 @@ def review(
             if draft is None:
                 _error(io, "the draft is unreadable: only e, s and q are available")
                 continue
+            if draft.meta.status is not Status.draft and (
+                (len(key) == 1 and key in "123456789") or key == "r"
+            ):
+                _error(io, f"run `promo unapprove {draft.meta.id}` first")
+                continue
+            if key == "a" and draft.meta.status is Status.approved:
+                _error(io, "already approved")
+                continue
             if len(key) == 1 and key in "123456789":
                 n = int(key)
                 if n > len(draft.variants):

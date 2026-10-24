@@ -11,7 +11,8 @@ product:
   proof_points:
     - Used internally by the Lumen team for every weekly meeting since January
   prohibited_claims:
-    - Never claim the summaries are always accurate or replace human review
+    - always accurate
+    - replace human review
   disclosures:
     - "#ad"
 brand_voice: brand.md

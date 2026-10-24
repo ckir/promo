@@ -101,5 +101,5 @@ def load_manifest(path: Path) -> Manifest:
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
         return Manifest.model_validate(raw)
-    except (OSError, yaml.YAMLError, ValidationError) as e:
+    except (OSError, UnicodeDecodeError, yaml.YAMLError, ValidationError) as e:
         raise ManifestError(f"{path}: {e}") from e

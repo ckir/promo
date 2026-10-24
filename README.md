@@ -22,28 +22,28 @@ Milestone 1 cannot publish. It holds no social-network credentials. After you po
 
 Generate drafts without any model call, to see how many calls would be made:
 
-    $ promo draft example --dry-run
+    $ uv run promo draft example --dry-run
     dry run: 4 model call(s) would be made
 
-Generate drafts (needs `ANTHROPIC_API_KEY`). Existing drafts are skipped unless you pass `--force`. `--beat`, `--network` and `--profile` narrow or change the run:
+Generate drafts (needs `ANTHROPIC_API_KEY`). Existing drafts are skipped unless you pass `--force`. `--beat`, `--network` and `--profile` narrow or change the run. `--force` regenerates and overwrites existing drafts, including approved ones, and clears `chosen` (attached media is kept). "Skipped" drafts are those that already exist, are posted, or are unreadable:
 
-    promo draft example
+    uv run promo draft example
 
 Review drafts one at a time (interactive terminal only). Keys: 1-9 choose a variant, `c` copy, `e` edit, `r` regenerate with a note, `a` approve, `s` skip, `q` quit. `--all` includes drafts that are already approved:
 
-    promo review example
+    uv run promo review example
 
 After you have posted an approved draft by hand, record where it went. `--text-file` optionally records the text as posted:
 
-    promo posted example/launch/x --url https://x.com/...
+    uv run promo posted example/launch/x --url https://x.com/...
 
 Return an approved draft to draft status (a posted draft cannot be unapproved):
 
-    promo unapprove example/launch/x
+    uv run promo unapprove example/launch/x
 
 Attach media files to a draft:
 
-    promo media example/launch/x PATH
+    uv run promo media example/launch/x PATH
 
 ## Draft ids and files
 

@@ -254,3 +254,22 @@ def test_draft_generation_error_mid_run_exits_1(
     assert "fake generator failure" in result.stderr
     written = sorted(p.name for p in (workdir / "drafts").rglob("*.md"))
     assert len(written) == 2
+
+
+def test_draft_binary_manifest_exits_cleanly(workdir: Path) -> None:
+    (workdir / "campaigns" / "example" / "manifest.yaml").write_bytes(b"\xff\xfe\x00")
+    result = CliRunner().invoke(app, ["draft", "example", "--dry-run"])
+    assert result.exit_code != 0
+    assert "manifest.yaml" in result.stderr
+    assert "Traceback" not in result.output
+    assert not isinstance(result.exception, UnicodeDecodeError)
+
+
+def test_posted_malformed_url_exits_cleanly(workdir: Path) -> None:
+    _generate()
+    _approve(TEASER_X)
+    result = CliRunner().invoke(app, ["posted", TEASER_X, "--url", "http://[::1"])
+    assert result.exit_code != 0
+    assert "--url must be an http(s) URL" in result.stderr
+    assert "Traceback" not in result.output
+    assert not isinstance(result.exception, ValueError)

@@ -438,3 +438,47 @@ def test_regenerate_one_refuses_trains_on_input_when_manifest_now_confidential(c
         )  # fmt: skip
     assert calls == []
     assert path.read_bytes() == before
+
+
+def test_force_regeneration_keeps_media_and_resets_chosen(campaign_dir):
+    _run(campaign_dir, FakeGenerator(), beat="teaser", network="x")
+    path = _path(campaign_dir, "teaser", "x")
+    d = drafts.load(path)
+    d.meta.media = ["img.png"]
+    d.meta.chosen = 2
+    drafts.save(d)
+    report = _run(campaign_dir, FakeGenerator(), beat="teaser", network="x", force=True)
+    assert report.generated == [_id(campaign_dir, "teaser", "x")]
+    after = drafts.load(path)
+    assert after.meta.media == ["img.png"]
+    assert after.meta.status is Status.draft
+    assert after.meta.chosen is None
+
+
+def test_brief_carries_tagged_url_once_and_reply_is_not_double_tagged(campaign_dir):
+    from promo.networks import limit_for
+    from promo.postprocess import tag_links
+
+    manifest = campaign_dir.manifest
+    beat = manifest.beats[0]
+    network = beat.networks[0]
+    prose, examples = load_brand_voice(manifest.brand_voice)
+    req = build_request(
+        manifest, beat, network, campaign_dir.campaign, prose, examples, 3,
+        limit_for(network, campaign_dir.settings), 2,
+    )  # fmt: skip
+    url = manifest.product.target_url
+    tagged = tag_links(url, url, network, campaign_dir.campaign, beat.id)
+    assert tagged != url
+    assert "Target URL (use exactly as written, do not alter): " + tagged in req.user
+    assert req.user.count(url) == 1
+
+    reply = [f"Widgets that work {tagged} {i}" for i in range(3)]
+    fake = FakeGenerator(responses=[reply])
+    report = _run(campaign_dir, fake, beat=beat.id, network=network.value)
+    did = _id(campaign_dir, beat.id, network.value)
+    assert did in report.generated
+    assert "too_long" not in report.warnings.get(did, [])
+    d = drafts.load(_path(campaign_dir, beat.id, network.value))
+    assert all(v.count("utm_") == tagged.count("utm_") for v in d.variants)
+    assert all(tagged in v for v in d.variants)

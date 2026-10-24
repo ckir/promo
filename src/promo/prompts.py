@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from promo.generators import GenerationRequest
+from promo.postprocess import tag_links
 from promo.schema import Beat, Manifest, ManifestError, Network
 
 EXAMPLES_START = "<!-- promo:examples:start -->"
@@ -51,6 +52,7 @@ def build_request(
     hashtag_cap: int,
 ) -> GenerationRequest:
     p = manifest.product
+    target = tag_links(p.target_url, p.target_url, network, campaign, beat.id)
     notes = beat.notes.strip() if beat.notes and beat.notes.strip() else "(none)"
     user = (
         f"[{beat.id}/{network.value}] Write posts for the {network.value} network.\n"
@@ -63,7 +65,7 @@ def build_request(
         f"Tagline: {p.tagline}\n"
         f"Problem: {p.problem_statement}\n"
         f"Key features:\n{_bullets(p.key_features)}\n"
-        f"Target URL: {p.target_url}\n"
+        f"Target URL (use exactly as written, do not alter): {target}\n"
         f"Audience: {p.audience}\n"
         f"Proof points:\n{_bullets(p.proof_points)}\n"
         f"Prohibited claims:\n{_bullets(p.prohibited_claims)}\n"
