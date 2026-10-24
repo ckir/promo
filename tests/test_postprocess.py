@@ -140,3 +140,52 @@ def test_finalize_warning_order_and_once_each(manifest):
         hashtag_cap=3,
     )
     assert warnings == ["too_long", "unsourced_number", "prohibited_claim", "too_many_hashtags"]
+
+
+def test_tag_links_leaves_url_continuations_alone():
+    t = "https://e.com/p"
+    for other in ("https://e.com/p.html", "https://e.com/p:80", "https://e.com/p.evil.com"):
+        assert tag_links(f"go {other} now", t, Network.x, "c", "b") == f"go {other} now"
+    assert tag_links("x https://e.com.evil.com y", "https://e.com", Network.x, "c", "b") == (
+        "x https://e.com.evil.com y"
+    )
+
+
+def test_tag_links_trailing_punctuation_and_repeats():
+    for tail in (".", ",", ")", "!"):
+        out = tag_links(f"see https://e.com/p{tail}", "https://e.com/p", Network.x, "c", "b")
+        assert (
+            out
+            == f"see https://e.com/p?utm_source=x&utm_medium=social&utm_campaign=c&utm_content=b{tail}"
+        )
+    out = tag_links("https://e.com/p and https://e.com/p", "https://e.com/p", Network.x, "c", "b")
+    assert out.count("utm_source=x") == 2
+
+
+def test_tag_links_no_path_and_case_insensitive():
+    out = tag_links("visit https://e.com now", "https://e.com", Network.x, "c", "b")
+    assert "utm_source=x" in out and out.startswith("visit https://e.com?utm_")
+    out = tag_links("visit HTTPS://E.COM/p now", "https://e.com/p", Network.x, "c", "b")
+    assert "utm_source=x" in out
+
+
+def test_number_token_membership_not_substring(manifest):
+    m = manifest.model_copy(
+        update={
+            "product": manifest.product.model_copy(update={"proof_points": ["120 users", "40%"]})
+        }
+    )
+    assert unsourced_numbers("12 and 40 and 120", m, "https://e.com/p") == ["12"]
+    assert unsourced_numbers("4", m, "https://e.com/p") == ["4"]
+
+
+def test_hashtag_count_excludes_url_fragments():
+    assert hashtag_count("https://e.com/p/#pricing and https://e.com/#top") == 0
+    assert hashtag_count("#a https://e.com/#top #b") == 2
+
+
+def test_disclosure_word_boundaries():
+    assert inject_disclosures("Try #address", ["#ad"]) == "Try #address\n#ad"
+    assert inject_disclosures("Try #AD", ["#ad"]) == "Try #AD"
+    assert inject_disclosures("Sponsored.", ["Sponsored."]) == "Sponsored."
+    assert inject_disclosures("Hello\n", ["#ad"]) == "Hello\n#ad"

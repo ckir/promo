@@ -9,16 +9,18 @@ from promo.schema import Beat, Manifest, Network
 
 _NUMBER = re.compile(r"\d[\d.,]*")
 _HASHTAG = re.compile(r"(?<!\w)#\w+")
+_URL_RE = re.compile(r"https?://\S+")
 _SENTENCE_END = re.compile(r"[.!?\n]")
 _PUNCT = re.compile(r"[^\w\s]")
 
 
 def inject_disclosures(text: str, disclosures: list[str]) -> str:
-    lowered = text.lower()
-    missing = [d for d in disclosures if d.lower() not in lowered]
+    missing = [
+        d for d in disclosures if not re.search(r"(?<!\w)" + re.escape(d) + r"(?!\w)", text, re.I)
+    ]
     if not missing:
         return text
-    return text + "\n" + " ".join(missing)
+    return text.rstrip() + "\n" + " ".join(missing)
 
 
 def _tag_one(url: str, network: Network, campaign: str, beat: str) -> str:
@@ -39,7 +41,7 @@ def tag_links(text: str, target_url: str, network: Network, campaign: str, beat:
     if not target_url:
         return text
     tagged = _tag_one(target_url, network, campaign, beat)
-    pattern = re.compile(re.escape(target_url) + r"(?![\w/~%-]|[?#]\S)")
+    pattern = re.compile(re.escape(target_url) + r"(?![\w/~%:&=+-]|\.\w|[?#]\S)", re.I)
     return pattern.sub(lambda _m: tagged, text)
 
 
@@ -67,10 +69,11 @@ def _manifest_strings(manifest: Manifest) -> list[str]:
 
 def unsourced_numbers(text: str, manifest: Manifest, tagged_url: str) -> list[str]:
     haystack = "\n".join([*_manifest_strings(manifest), tagged_url])
+    sourced = {m.group(0).rstrip(".,") for m in _NUMBER.finditer(haystack)}
     found: list[str] = []
     for m in _NUMBER.finditer(text):
         num = m.group(0).rstrip(".,")
-        if num and num not in haystack and num not in found:
+        if num and num not in sourced and num not in found:
             found.append(num)
     return found
 
@@ -96,7 +99,7 @@ def shares_opening(a: str, b: str) -> bool:
 
 
 def hashtag_count(text: str) -> int:
-    return len(_HASHTAG.findall(text))
+    return len(_HASHTAG.findall(_URL_RE.sub("", text)))
 
 
 def finalize(
