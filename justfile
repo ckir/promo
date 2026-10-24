@@ -14,4 +14,7 @@ typecheck:
 test:
     uv run pytest
 
-check: lint typecheck test
+license:
+    addlicense -f header.txt -check .
+
+check: lint typecheck license test

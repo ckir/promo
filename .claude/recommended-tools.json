@@ -12,6 +12,12 @@
     "in_path": "just"
   },
   {
+    "name": "addlicense",
+    "why": "`just license` (part of `just check`) verifies every source file carries the header in header.txt",
+    "install": "go install github.com/google/addlicense@v1.2.0",
+    "in_path": "addlicense"
+  },
+  {
     "name": "xsel",
     "why": "review-loop clipboard copy (pyperclip backend on X11; wl-copy on Wayland)",
     "install": "sudo apt install xsel (X11) or sudo apt install wl-clipboard (Wayland)",

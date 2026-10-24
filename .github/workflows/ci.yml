@@ -1,3 +1,9 @@
+# Copyright (c) 2026 Costas Kirgoussios
+#
+# This software is licensed under the PolyForm Noncommercial License 1.0.0.
+# You may obtain a copy of the License at:
+# https://polyformproject.org/licenses/noncommercial/1.0.0/
+
 name: CI
 
 on:
@@ -18,4 +24,9 @@ jobs:
       - run: uv python install ${{ matrix.python-version }}
       - run: uv sync --frozen
       - uses: extractions/setup-just@v4
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - run: go install github.com/google/addlicense@v1.2.0
+      - run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - run: just check
