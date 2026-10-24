@@ -156,3 +156,49 @@ def campaign_dir(tmp_path: Path) -> CampaignDir:
         settings=settings,
         brand=brand,
     )
+
+
+class DraftsTree(NamedTuple):
+    campaign: CampaignDir
+    paths: dict[str, Path]
+
+    @property
+    def root(self) -> Path:
+        return self.campaign.drafts_root
+
+
+@pytest.fixture
+def drafts_tree(campaign_dir: CampaignDir) -> DraftsTree:
+    """Drafts of every status under drafts/<campaign>/<beat>/<network>.md, 3 variants each."""
+    from promo.drafts import Draft, DraftMeta, Status, Usage, draft_id, save
+    from promo.schema import Network
+
+    spec = {
+        "draft": ("teaser", Network.x, Status.draft, [], None),
+        "draft_warn": ("teaser", Network.linkedin, Status.draft, ["prohibited_claim"], None),
+        "approved_warn": ("launch", Network.x, Status.approved, ["too_long"], 1),
+        "approved_clean": ("launch", Network.linkedin, Status.approved, [], 1),
+        "posted": ("teaser", Network.threads, Status.posted, [], 1),
+        "scheduled": ("teaser", Network.mastodon, Status.scheduled, [], 1),
+    }
+    paths: dict[str, Path] = {}
+    for name, (beat, network, status, warnings, chosen) in spec.items():
+        meta = DraftMeta(
+            id=draft_id(campaign_dir.campaign, beat, network),
+            campaign=campaign_dir.campaign,
+            beat=beat,
+            network=network,
+            status=status,
+            variants=3,
+            chosen=chosen,
+            generated_at=datetime(2026, 10, 24, 9, 0, tzinfo=UTC),
+            profile="claude",
+            model="claude-test",
+            usage=Usage(input_tokens=10, output_tokens=20),
+            needs_media=False,
+            warnings=warnings,
+        )
+        path = campaign_dir.drafts_root / campaign_dir.campaign / beat / f"{network.value}.md"
+        save(Draft(meta=meta, variants=[f"{name} one", f"{name} two", f"{name} three"], path=path))
+        paths[name] = path
+    return DraftsTree(campaign=campaign_dir, paths=paths)

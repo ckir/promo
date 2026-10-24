@@ -1,3 +1,4 @@
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, NoReturn
@@ -6,7 +7,7 @@ from urllib.parse import urlsplit
 import typer
 
 from promo import __version__, drafts
-from promo.config import ConfigError, load_settings, resolve_api_key
+from promo.config import ConfigError, Settings, load_settings, resolve_api_key
 from promo.drafts import DraftError, draft_path
 from promo.generate import run_draft
 from promo.generators import (
@@ -16,7 +17,8 @@ from promo.generators import (
     Generator,
     make_generator,
 )
-from promo.schema import SLUG_RE, ManifestError, load_manifest
+from promo.review import TerminalIO, review
+from promo.schema import SLUG_RE, Manifest, ManifestError, load_manifest
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -65,6 +67,13 @@ def _existing_draft(draft_id: str) -> Path:
     return path
 
 
+def _load_campaign(campaign: str) -> tuple[Settings, Manifest]:
+    settings = load_settings()
+    if not SLUG_RE.fullmatch(campaign):
+        raise ManifestError(f"campaign name {campaign!r} must match [a-z0-9-]+")
+    return settings, load_manifest(Path("campaigns") / campaign / "manifest.yaml")
+
+
 @app.command()
 def draft(
     campaign: str = typer.Argument(..., help="Campaign name (directory under campaigns/)."),
@@ -76,10 +85,7 @@ def draft(
 ) -> None:
     """Generate drafts for a campaign."""
     try:
-        settings = load_settings()
-        if not SLUG_RE.fullmatch(campaign):
-            raise ManifestError(f"campaign name {campaign!r} must match [a-z0-9-]+")
-        manifest = load_manifest(Path("campaigns") / campaign / "manifest.yaml")
+        settings, manifest = _load_campaign(campaign)
         profile = settings.profile(profile_name)
         generator: Generator
         if dry_run:
@@ -167,3 +173,30 @@ def media(
     except _EXPECTED as e:
         _fail(str(e))
     typer.echo(f"media {draft_id}: {len(paths)} file(s)")
+
+
+@app.command(name="review")
+def review_cmd(
+    campaign: Annotated[str, typer.Argument(help="Campaign name.")],
+    all_: Annotated[bool, typer.Option("--all", help="Include approved drafts too.")] = False,
+) -> None:
+    """Review drafts interactively: choose, edit, regenerate, approve."""
+    if not sys.stdin.isatty():
+        _fail("promo review needs an interactive terminal")
+    try:
+        settings, manifest = _load_campaign(campaign)
+        summary = review(
+            DRAFTS_ROOT,
+            campaign,
+            TerminalIO(),
+            all_=all_,
+            manifest=manifest,
+            settings=settings,
+            now=datetime.now(UTC),
+            generator_factory=make_generator,
+        )
+    except _EXPECTED as e:
+        _fail(str(e))
+    typer.echo(
+        f"approved {summary.approved}, skipped {summary.skipped}, regenerated {summary.regenerated}"
+    )
