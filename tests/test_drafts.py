@@ -96,7 +96,8 @@ def test_parse_rejects_chosen_whose_heading_was_removed():
 
 def test_parse_rejects_variant_count_mismatch():
     with pytest.raises(DraftError, match="variants"):
-        parse(render(_meta(variants=2), ["a", "b", "c"]), Path("x.md"))
+        text = render(_meta(), ["a", "b", "c"]).replace("variants: 3", "variants: 2")
+        parse(text, Path("x.md"))
 
 
 def test_parse_rejects_bad_front_matter():
@@ -224,3 +225,78 @@ def test_save_creates_missing_parent_directories(tmp_path: Path):
     p = tmp_path / "drafts" / "camp" / "beat" / "d.md"
     save(Draft(meta=_meta(), variants=["a", "b", "c"], path=p))
     assert load(p).variants == ["a", "b", "c"]
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "intro\n## Variant 2\nmore",
+        "text\n## Variant 2",
+        "```\n## Variant 2\n```",
+        "## Variant 7",
+    ],
+)
+def test_render_refuses_heading_like_lines(bad: str):
+    with pytest.raises(DraftError, match="heading"):
+        render(_meta(), ["a", bad, "c"])
+
+
+def test_render_refuses_count_mismatch():
+    with pytest.raises(DraftError, match="variants"):
+        render(_meta(variants=2), ["a", "b", "c"])
+
+
+def test_save_refuses_unloadable_and_leaves_original(tmp_draft: Path):
+    original = tmp_draft.read_bytes()
+    d = load(tmp_draft)
+    d.variants[1] = "x\n## Variant 2\ny"
+    with pytest.raises(DraftError):
+        save(d)
+    assert tmp_draft.read_bytes() == original
+    assert os.listdir(tmp_draft.parent) == [tmp_draft.name]
+
+
+def test_save_refusal_creates_no_directories(tmp_path: Path):
+    p = tmp_path / "new" / "dir" / "d.md"
+    with pytest.raises(DraftError):
+        save(Draft(meta=_meta(), variants=["a", "", "c"], path=p))
+    assert not (tmp_path / "new").exists()
+
+
+def _roundtrip(variants: list[str]) -> list[str]:
+    meta = _meta(variants=len(variants))
+    return parse(render(meta, variants), Path("x.md")).variants
+
+
+def test_variant_indentation_and_trailing_spaces_survive():
+    assert _roundtrip(["  indented\nsecond  ", "b"]) == ["  indented\nsecond  ", "b"]
+
+
+def test_variant_crlf_and_cr_become_lf():
+    assert _roundtrip(["  ind\r\nx\ry", "b"]) == ["  ind\nx\ny", "b"]
+
+
+def test_variant_framing_blank_lines_are_stripped():
+    assert _roundtrip(["\n\nbody\n\n", "b"]) == ["body", "b"]
+
+
+def test_variant_with_triple_dash_line_roundtrips():
+    v = ["before\n---\nafter", "b"]
+    assert _roundtrip(v) == v
+
+
+def test_variant_non_ascii_roundtrips():
+    v = ["Καλημέρα \U0001f680 café", "日本語"]
+    assert _roundtrip(v) == v
+
+
+@pytest.mark.parametrize("empty", ["", "   ", "\n\n", " \n \t\n"])
+def test_render_refuses_empty_variant(empty: str):
+    with pytest.raises(DraftError, match="empty"):
+        render(_meta(), ["a", empty, "c"])
+
+
+def test_parse_rejects_hand_edited_empty_variant():
+    text = render(_meta(), ["a", "b", "c"]).replace("\nb\n", "\n \n")
+    with pytest.raises(DraftError, match="empty"):
+        parse(text, Path("x.md"))

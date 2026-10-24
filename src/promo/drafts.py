@@ -1,4 +1,11 @@
-"""Draft files: front-matter contract, variants and status transitions."""
+"""Draft files: front-matter contract, variants and status transitions.
+
+Variant text is stored verbatim, with two exceptions: CR/CRLF line endings are
+normalised to LF, and only the framing blank lines around a variant are
+stripped (``strip("\\n")``), so indentation and trailing spaces inside a line
+survive. ``render`` refuses variants that would not load back (empty variants,
+or a line that looks like a ``## Variant N`` heading).
+"""
 
 import os
 import re
@@ -9,8 +16,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-import frontmatter
 import yaml  # type: ignore[import-untyped]
+from frontmatter.default_handlers import YAMLHandler
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from promo.schema import Network
@@ -103,7 +110,22 @@ def _meta_dict(meta: DraftMeta) -> dict[str, Any]:
     return data
 
 
+def _clean(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def render(meta: DraftMeta, variants: list[str]) -> str:
+    """Render a draft file; raise DraftError if the result would not load back."""
+    if meta.variants != len(variants):
+        raise DraftError(f"meta.variants={meta.variants} but {len(variants)} variants given")
+    cleaned = []
+    for i, v in enumerate(variants, 1):
+        v = _clean(v).strip("\n")
+        if not v.strip():
+            raise DraftError(f"variant {i} is empty")
+        if VARIANT_RE.search(v):
+            raise DraftError(f"variant {i} contains a line that looks like a variant heading")
+        cleaned.append(v)
     head = yaml.dump(
         _meta_dict(meta),
         Dumper=_Dumper,
@@ -111,17 +133,23 @@ def render(meta: DraftMeta, variants: list[str]) -> str:
         allow_unicode=True,
         default_flow_style=False,
     )
-    body = "\n\n".join(f"## Variant {i}\n\n{v.strip()}" for i, v in enumerate(variants, 1))
+    body = "\n\n".join(f"## Variant {i}\n\n{v}" for i, v in enumerate(cleaned, 1))
     return f"---\n{head}---\n\n{body}\n"
 
 
 def parse(text: str, path: Path) -> Draft:
+    text = _clean(text)
+    handler = YAMLHandler()
     try:
-        post = frontmatter.loads(text)
-        meta = DraftMeta.model_validate(post.metadata)
-    except (ValidationError, TypeError, yaml.YAMLError) as e:
+        fm, body = handler.split(text.lstrip("\ufeff"))
+        data = handler.load(fm)
+        if not isinstance(data, dict):
+            raise DraftError(f"{path}: front matter is not a mapping")
+        meta = DraftMeta.model_validate(data)
+    except DraftError:
+        raise
+    except (ValidationError, TypeError, ValueError, yaml.YAMLError) as e:
         raise DraftError(f"{path}: invalid front matter: {e}") from e
-    body: str = post.content
     matches = list(VARIANT_RE.finditer(body))
     numbers = [int(m.group(1)) for m in matches]
     if numbers != list(range(1, len(numbers) + 1)):
@@ -139,7 +167,10 @@ def parse(text: str, path: Path) -> Draft:
     variants = []
     for i, m in enumerate(matches):
         end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
-        variants.append(body[m.end() : end].strip())
+        variant = body[m.end() : end].strip("\n")
+        if not variant.strip():
+            raise DraftError(f"{path}: variant {i + 1} is empty")
+        variants.append(variant)
     return Draft(meta=meta, variants=variants, path=path)
 
 
@@ -152,8 +183,9 @@ def load(path: Path) -> Draft:
 
 
 def save(draft: Draft) -> None:
-    draft.path.parent.mkdir(parents=True, exist_ok=True)
     text = render(draft.meta, draft.variants)
+    parse(text, draft.path)  # never let an unloadable file reach disk
+    draft.path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=draft.path.parent, prefix=f".{draft.path.name}.", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
