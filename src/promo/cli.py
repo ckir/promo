@@ -122,6 +122,9 @@ def posted(
     ] = None,
 ) -> None:
     """Record that an approved draft was published."""
+    url = url.strip()
+    if any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127 for ch in url):
+        _fail("--url must be an http(s) URL without whitespace or control characters")
     parts = urlsplit(url)
     if parts.scheme not in {"http", "https"} or not parts.netloc:
         _fail("--url must be an http(s) URL")

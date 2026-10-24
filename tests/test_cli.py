@@ -140,6 +140,8 @@ def test_posted_missing_text_file_exit_1(workdir: Path) -> None:
         ["posted", TEASER_X, "--url", "https://x.example/1", "--text-file", "nope.txt"],
     )
     assert result.exit_code == 1
+    assert "cannot read --text-file" in result.stderr
+    assert drafts.load(draft_path(Path("drafts"), TEASER_X)).meta.status is Status.approved
 
 
 def test_unknown_draft_id_exits_1(workdir: Path) -> None:
@@ -193,3 +195,62 @@ def test_example_manifest_validates() -> None:
     assert manifest.confidential is True
     prose, examples = load_brand_voice(REPO / "brand.md")
     assert prose and examples
+
+
+def test_posted_strips_surrounding_whitespace(workdir: Path) -> None:
+    _generate()
+    path = _approve(TEASER_X)
+    result = CliRunner().invoke(app, ["posted", TEASER_X, "--url", "  https://x.example/1 \n"])
+    assert result.exit_code == 0, result.output
+    assert drafts.load(path).meta.published_url == "https://x.example/1"
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "https://x.example/a b",
+        "https://x.example/\nstatus: draft",
+        "http://a\x00",
+        "javascript:alert(1)",
+        "file:///etc/passwd",
+        "http://",
+    ],
+)
+def test_posted_rejects_bad_urls_without_writing(workdir: Path, bad: str) -> None:
+    _generate()
+    path = _approve(TEASER_X)
+    before = path.read_bytes()
+    result = CliRunner().invoke(app, ["posted", TEASER_X, "--url", bad])
+    assert result.exit_code == 1
+    assert "--url must be an http(s) URL" in result.stderr
+    assert path.read_bytes() == before
+
+
+def test_posted_on_draft_status_exits_1_file_unchanged(workdir: Path) -> None:
+    _generate()
+    path = draft_path(Path("drafts"), TEASER_X)
+    before = path.read_bytes()
+    result = CliRunner().invoke(app, ["posted", TEASER_X, "--url", "https://x.example/1"])
+    assert result.exit_code == 1
+    assert "cannot mark as posted" in result.stderr
+    assert path.read_bytes() == before
+
+
+def test_draft_unknown_beat_exits_1(workdir: Path) -> None:
+    result = CliRunner().invoke(app, ["draft", "example", "--beat", "nope"])
+    assert result.exit_code == 1
+    assert "unknown beat" in result.stderr
+    assert not (workdir / "drafts").exists()
+
+
+def test_draft_generation_error_mid_run_exits_1(
+    workdir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "promo.cli.make_generator", lambda profile, key: FakeGenerator(fail_after=2)
+    )
+    result = CliRunner().invoke(app, ["draft", "example"])
+    assert result.exit_code == 1
+    assert "fake generator failure" in result.stderr
+    written = sorted(p.name for p in (workdir / "drafts").rglob("*.md"))
+    assert len(written) == 2

@@ -52,7 +52,7 @@ def test_ids_and_paths(tmp_path: Path):
     assert draft_path(Path("drafts"), did) == Path("drafts/camp/beat/x.md")
 
 
-@pytest.mark.parametrize("bad", ["../x", "a/../b", "/abs/x", "a//b"])
+@pytest.mark.parametrize("bad", ["../x", "a/../b", "/abs/x", "a//b", "a/./b", "./a"])
 def test_draft_path_rejects_unsafe_ids(tmp_path: Path, bad: str):
     with pytest.raises(DraftError):
         draft_path(tmp_path, bad)
