@@ -93,6 +93,16 @@ def test_addon_notes_name_the_three_plugins() -> None:
         assert f"claude plugin install {plugin}@clavity" in notes
 
 
+def test_proof_points_do_not_name_the_review_type() -> None:
+    joined = "\n".join(_manifest().product.proof_points).lower()
+    assert "adversarial" not in joined
+
+
+def test_addon_notes_state_the_commonmemory_prerequisite() -> None:
+    notes = _beats(_manifest())["addon-replies"].notes or ""
+    assert "@agentmemory/agentmemory" in notes
+
+
 def test_brand_examples_pass_post_processing() -> None:
     m = _manifest()
     _, examples = load_brand_voice(REPO / m.brand_voice)

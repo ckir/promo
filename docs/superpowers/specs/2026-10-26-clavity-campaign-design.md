@@ -1,6 +1,6 @@
 # clavity install campaign - design (short)
 
-Status: DRAFT, awaiting owner approval. Nothing below is built. No manifest has been created.
+Status: APPROVED by the owner 2026-10-26 (agy escalation waived by the owner). Implemented on branch clavity-campaign.
 Date: 2026-10-26. Size: small (one manifest, three drafts, one post per group).
 
 ## Intent and why
@@ -49,7 +49,7 @@ parameters to every occurrence of that URL, so the comment's link will carry the
 |---|---|---|---|
 | `case-study` | deep-dive | the post body | the AT-2 catch, no links, no install command |
 | `install-comment` | custom (notes required) | the FIRST COMMENT | install commands, prerequisites, licence line, repo link |
-| `addon-replies` | custom (notes required) | reply text pasted on request | one short paragraph each for agy-autotrain, commonmemory, review-relay |
+| `addon-replies` | custom (notes required) | reply text pasted on request | one short paragraph each for agy-autotrain, commonmemory, review-relay; the commonmemory paragraph must say it needs the npm package `@agentmemory/agentmemory` first (README line 30) |
 
 The comment-vs-body split is a hypothesis from agy (links in the body may be penalised, code formatting
 may break). Both are UNVERIFIED. The split costs little, so it stays; the owner can merge the two drafts

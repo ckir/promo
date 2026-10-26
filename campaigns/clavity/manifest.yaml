@@ -15,7 +15,7 @@ product:
   target_url: https://github.com/ckir/clavity
   audience: Claude Code users who already use the superpowers plugin
   proof_points:
-    - Round 1 of an adversarial review of a snapshot change returned GREEN with zero findings, and it was wrong.
+    - Round 1 of a review of a snapshot change returned GREEN with zero findings, and it was wrong.
     - The setting AGY_INBOX_SNAPSHOT_KEEP fed tail -n +$((KEEP + 1)) in a bash script without validation.
     - bash evaluates a non-numeric name as 0, so abc, a negative number, or 0 all became tail -n +1, which lists every snapshot slot and deletes them all, including the snapshot written moments earlier by the same invocation.
     - "Measured with a control: KEEP=5 kept 4 slots; KEEP=0, abc and -1 kept 0, silently, with exit status 0."
@@ -50,4 +50,4 @@ beats:
     offset_days: 0
     intent: custom
     networks: [facebook]
-    notes: "Write three short reply paragraphs for people who already installed the core plugin, one per add-on, each starting with its exact command: claude plugin install agy-autotrain@clavity (learns how to drive agy from everyday use), claude plugin install commonmemory@clavity (shared memory for Claude and agy), claude plugin install review-relay@clavity (assisted copy-paste review rounds with web AI models). No other claims."
+    notes: "Write three short reply paragraphs for people who already installed the core plugin, one per add-on, each starting with its exact command: claude plugin install agy-autotrain@clavity (learns how to drive agy from everyday use), claude plugin install commonmemory@clavity (shared memory for Claude and agy; it needs the npm package @agentmemory/agentmemory first), claude plugin install review-relay@clavity (assisted copy-paste review rounds with web AI models). No other claims."
