@@ -15,6 +15,6 @@ test:
     uv run pytest
 
 license:
-    addlicense -f header.txt -check .
+    addlicense -f header.txt -check -ignore '.venv/**' .
 
 check: lint typecheck license test
