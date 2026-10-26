@@ -56,7 +56,7 @@ def test_manifest_shape() -> None:
     assert beats["addon-replies"].intent is Intent.custom
     assert all(b.networks == [Network.facebook] and b.offset_days == 0 for b in m.beats)
     assert m.confidential is False
-    assert m.product.target_url == "https://github.com/ckir/clavity"
+    assert m.product.target_url == "https://ckir.github.io/clavity/"
     assert m.product.disclosures == ["I'm the author of clavity."]
     assert set(m.product.prohibited_claims) == PROHIBITED
 
@@ -85,6 +85,12 @@ def test_install_comment_notes_carry_exact_commands() -> None:
     notes = _beats(_manifest())["install-comment"].notes or ""
     assert "claude plugin marketplace add ckir/clavity" in notes
     assert "claude plugin install clavity@clavity" in notes
+
+
+def test_install_comment_links_the_site_not_the_repository() -> None:
+    notes = _beats(_manifest())["install-comment"].notes or ""
+    assert "Include the link to the site once" in notes
+    assert "repository link" not in notes
 
 
 def test_addon_notes_name_the_three_plugins() -> None:

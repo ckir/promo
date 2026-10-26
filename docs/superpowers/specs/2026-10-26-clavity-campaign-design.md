@@ -41,9 +41,13 @@ agy-first verdict: NEGOTIATE on the ladder, resolved by the driver conceding it 
 ## The campaign (three beats, all `facebook`, all `offset_days: 0`)
 `campaigns/clavity/manifest.yaml` with `brand_voice: campaigns/clavity/brand.md` (a new file, not the
 root `brand.md`, which is Lumen Notes' voice; the path is relative to where `promo` is run).
-`product.target_url` = `https://github.com/ckir/clavity` (derived from the README's
-`claude plugin marketplace add ckir/clavity`; confirm the repo URL before posting). promo appends UTM
-parameters to every occurrence of that URL, so the comment's link will carry them; harmless, slightly ugly.
+`product.target_url` = `https://ckir.github.io/clavity/`, clavity's own site, which the owner wants promoted
+(corrected 2026-10-26: the first version used the GitHub repo URL, taken from the README's marketplace name
+without checking for a site). The live page was fetched 2026-10-26 (HTTP 200) and is identical to
+`site/index.html` in the clavity repo; it carries the install commands with copy buttons, the prerequisites,
+the licence and the user guide. promo appends UTM parameters to every occurrence of that URL, so the
+comment's link will carry them. The site has no analytics (no analytics script in `site/index.html` or
+`site/script.js`), so nothing reads those parameters; delete them by hand if you prefer a clean link.
 
 | beat id | intent | becomes | content |
 |---|---|---|---|
@@ -84,8 +88,9 @@ Install and prerequisite facts: `/home/user/Development/Rust/clavity/README.md` 
   and not a rate. Word it without the prohibited phrases above.
 
 ## Owner-visible signals
-Comments asking setup questions; the repo's GitHub traffic page. Installs themselves are NOT
-visible, and neither signal is verified to predict them.
+Comments asking setup questions. Installs themselves are NOT visible, and that signal is not verified to
+predict them. The site has no analytics, and the repo's GitHub traffic page probably does not count visits to
+the Pages site (UNVERIFIED), so site visits are not visible unless the owner adds analytics.
 
 ## Owner's pre-post checklist (promo cannot do these)
 1. Read each target group's rules on self-promotion and links BEFORE posting; post only where allowed.

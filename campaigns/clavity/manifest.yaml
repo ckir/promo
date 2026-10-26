@@ -12,7 +12,7 @@ product:
     - Claude Code and an Antigravity (agy) instance work in the same folder, one driving and one reviewing
     - Adversarial panel review of specs and plans, and a capstone review of committed code
     - Optional add-ons agy-autotrain, commonmemory and review-relay
-  target_url: https://github.com/ckir/clavity
+  target_url: https://ckir.github.io/clavity/
   audience: Claude Code users who already use the superpowers plugin
   proof_points:
     - Round 1 of a review of a snapshot change returned GREEN with zero findings, and it was wrong.
@@ -45,7 +45,7 @@ beats:
     offset_days: 0
     intent: custom
     networks: [facebook]
-    notes: "Write the first comment under the case-study post, for Claude Code users. State that it needs the superpowers plugin (https://github.com/obra/superpowers) and Antigravity (agy), and that clavity is licensed PolyForm Noncommercial 1.0.0 for personal, academic and non-profit use only. Say clavity-dotnet and clavity-classic are mutually exclusive and give only the plugin route. Reproduce these two commands exactly, each on its own line: claude plugin marketplace add ckir/clavity and claude plugin install clavity@clavity. Include the repository link once."
+    notes: "Write the first comment under the case-study post, for Claude Code users. State that it needs the superpowers plugin (https://github.com/obra/superpowers) and Antigravity (agy), and that clavity is licensed PolyForm Noncommercial 1.0.0 for personal, academic and non-profit use only. Say clavity-dotnet and clavity-classic are mutually exclusive and give only the plugin route. Reproduce these two commands exactly, each on its own line: claude plugin marketplace add ckir/clavity and claude plugin install clavity@clavity. Include the link to the site once; the site has the install commands with copy buttons, the prerequisites and the user guide."
   - id: addon-replies
     offset_days: 0
     intent: custom
