@@ -128,7 +128,16 @@ def _error(io: ReviewIO, msg: str) -> None:
     io.print(Text(sanitize(msg), style="bold red"))
 
 
-def _show(io: ReviewIO, draft: Draft, manifest: Manifest) -> None:
+def _hint(count: int) -> str:
+    choose = "[1] choose" if count == 1 else f"[1-{count}] choose"
+    return f"{choose}  n next  p prev  c copy  e edit  r regenerate  a approve  s skip  q quit"
+
+
+def _initial_view(draft: Draft) -> int:
+    return draft.meta.chosen if draft.meta.chosen is not None else 1
+
+
+def _show(io: ReviewIO, draft: Draft, manifest: Manifest, view: int) -> None:
     meta = draft.meta
     chosen = str(meta.chosen) if meta.chosen is not None else "none"
     io.print(Text(sanitize(f"{meta.id}  status: {meta.status.value}  chosen: {chosen}")))
@@ -141,21 +150,21 @@ def _show(io: ReviewIO, draft: Draft, manifest: Manifest) -> None:
         meta.campaign,
         meta.beat,
     )
-    for n, text in enumerate(draft.variants, 1):
-        if "prohibited_claim" in meta.warnings:
-            hits = prohibited_matches(text, manifest.product.prohibited_claims)
-            if hits:
-                io.print(Text(sanitize(f"variant {n} matches: {', '.join(hits)}"), style="red"))
-        if "unsourced_number" in meta.warnings:
-            nums = unsourced_numbers(text, manifest, tagged)
-            if nums:
-                io.print(Text(sanitize(f"variant {n} unsourced: {', '.join(nums)}"), style="red"))
+    text = draft.variants[view - 1]
+    if "prohibited_claim" in meta.warnings:
+        hits = prohibited_matches(text, manifest.product.prohibited_claims)
+        if hits:
+            io.print(Text(sanitize(f"variant {view} matches: {', '.join(hits)}"), style="red"))
+    if "unsourced_number" in meta.warnings:
+        nums = unsourced_numbers(text, manifest, tagged)
+        if nums:
+            io.print(Text(sanitize(f"variant {view} unsourced: {', '.join(nums)}"), style="red"))
     if meta.needs_media and not meta.media:
         io.print(Text("this draft needs media: attach it with `promo media`", style="yellow"))
-    for n, text in enumerate(draft.variants, 1):
-        mark = " (chosen)" if meta.chosen == n else ""
-        io.print(Panel(Text(sanitize(text)), title=Text(f"Variant {n}{mark}"), title_align="left"))
-    io.print(Text("[1-9] choose  c copy  e edit  r regenerate  a approve  s skip  q quit"))
+    mark = " (chosen)" if meta.chosen == view else ""
+    title = Text(f"Variant {view} of {len(draft.variants)}{mark}")
+    io.print(Panel(Text(sanitize(text)), title=title, title_align="left"))
+    io.print(Text(_hint(len(draft.variants))))
 
 
 def review(
@@ -171,6 +180,7 @@ def review(
 ) -> ReviewSummary:
     summary = ReviewSummary()
     for path in select_for_review(drafts_root, campaign, all_=all_):
+        view = 0  # 0: not set yet for this draft; set from the chosen variant on first show
         while True:
             draft: Draft | None
             try:
@@ -180,7 +190,10 @@ def review(
                 _error(io, str(e))
                 io.print(Text("[e] edit  [s] skip  [q] quit"))
             if draft is not None:
-                _show(io, draft, manifest)
+                if view == 0:
+                    view = _initial_view(draft)
+                view = min(max(view, 1), len(draft.variants))
+                _show(io, draft, manifest, view)
             key = io.read_key()
             if key == "q":
                 return summary
@@ -195,6 +208,10 @@ def review(
                 continue
             if draft is None:
                 _error(io, "the draft is unreadable: only e, s and q are available")
+                continue
+            if key in ("n", "p"):
+                step = 1 if key == "n" else -1
+                view = (view - 1 + step) % len(draft.variants) + 1
                 continue
             if draft.meta.status is not Status.draft and (
                 (len(key) == 1 and key in "123456789") or key == "r"
@@ -214,6 +231,8 @@ def review(
                     drafts.save(draft)
                 except DraftError as e:
                     _error(io, str(e))
+                else:
+                    view = n
             elif key == "c":
                 if draft.meta.chosen is None:
                     _error(io, "no variant has been chosen")
@@ -235,6 +254,7 @@ def review(
                     _error(io, str(e))
                     continue
                 summary.regenerated += 1
+                view = 0
             elif key == "a":
                 try:
                     drafts.approve(path)

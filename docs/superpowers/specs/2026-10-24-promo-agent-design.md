@@ -141,8 +141,8 @@ Commands:
 - `promo review <campaign>`: interactive terminal loop over drafts in `draft` status plus
   any `approved` draft that carries a warning (for example `queue_failed`), so nothing that
   needs a human's eyes is hidden; `--all` widens it to every draft that is not `scheduled` or
-  `posted`. Shows the variants rendered with rich, with any `warnings` highlighted. Keys: `1`..`9` choose a
-  variant, `c` copy the chosen variant to the clipboard, `e` open the file in `$EDITOR`
+  `posted`. Shows one variant per screen, rendered with rich, with any `warnings` highlighted. Keys: `n` next
+  and `p` previous variant (wrapping), `1`..`9` choose a variant (and show it), `c` copy the chosen variant to the clipboard, `e` open the file in `$EDITOR`
   (falls back to `vi` when unset), `r` regenerate all variants of this draft with a note
   (resets `chosen`), `a` approve, `s` skip, `q` quit. Refuses to start when stdin is not a terminal. Clipboard
   copy falls back to printing the text when no clipboard utility is available. After the

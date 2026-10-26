@@ -238,7 +238,7 @@ def test_markup_and_escape_sequences_in_variants_are_neutralised(
     d.variants[0] = "[red]x[/red] and [bold]y"
     d.variants[1] = "evil \x1b[31mred\x1b[0m \x1b]0;title\x07 bell\x07 c1\x85 end"
     drafts.save(d)
-    io = ScriptedIO(["s", "s", "q"])
+    io = ScriptedIO(["s", "s", "n", "q"])
     _run(drafts_tree, io)
     assert "[red]x[/red] and [bold]y" in io.output
     assert "\x1b" not in io.output
@@ -263,6 +263,105 @@ def test_warning_details_and_media_hint(drafts_tree: DraftsTree) -> None:
     assert re.search(r"variant 1 matches: guaranteed", io.output)
     assert re.search(r"variant 1 unsourced: 99", io.output)
     assert "promo media" in io.output
+
+
+def test_only_the_viewed_variant_is_printed(drafts_tree: DraftsTree) -> None:
+    io = ScriptedIO(["s", "s", "q"])
+    _run(drafts_tree, io)
+    assert "draft one" in io.output
+    assert "draft two" not in io.output and "draft three" not in io.output
+    assert "Variant 1 of 3" in io.output
+
+
+def test_hint_shows_the_real_variant_count(drafts_tree: DraftsTree) -> None:
+    io = ScriptedIO(["s", "s", "q"])
+    _run(drafts_tree, io)
+    assert "[1-3] choose  n next  p prev" in io.output
+    assert "[1-9]" not in io.output
+
+
+def test_n_moves_forward_and_wraps(drafts_tree: DraftsTree) -> None:
+    io = ScriptedIO(["s", "s", "n", "n", "n", "q"])
+    _run(drafts_tree, io)
+    assert "draft two" in io.output and "draft three" in io.output
+    # 3 first screens (approved_warn, draft_warn, draft) + 1 after wrapping on `draft`
+    assert io.output.count("Variant 1 of 3") == 4
+
+
+def test_p_moves_back_and_wraps(drafts_tree: DraftsTree) -> None:
+    io = ScriptedIO(["s", "s", "p", "q"])
+    _run(drafts_tree, io)
+    assert "draft three" in io.output and "Variant 3 of 3" in io.output
+
+
+def test_n_and_p_write_nothing(drafts_tree: DraftsTree) -> None:
+    path = drafts_tree.paths["draft"]
+    before = (path.read_bytes(), path.stat().st_mtime_ns)
+    io = ScriptedIO(["s", "s", "n", "p", "q"])
+    _run(drafts_tree, io)
+    assert "Variant 2 of 3" in io.output and "unknown key" not in io.output
+    assert (path.read_bytes(), path.stat().st_mtime_ns) == before
+
+
+def test_digit_chooses_and_moves_the_view(drafts_tree: DraftsTree) -> None:
+    io = ScriptedIO(["s", "s", "2", "q"])
+    _run(drafts_tree, io)
+    assert drafts.load(drafts_tree.paths["draft"]).meta.chosen == 2
+    assert "Variant 2 of 3 (chosen)" in io.output and "draft two" in io.output
+
+
+def test_view_starts_at_the_chosen_variant(drafts_tree: DraftsTree) -> None:
+    d = drafts.load(drafts_tree.paths["draft"])
+    d.meta.chosen = 3
+    drafts.save(d)
+    io = ScriptedIO(["s", "s", "q"])
+    _run(drafts_tree, io)
+    assert "Variant 3 of 3 (chosen)" in io.output
+    assert "draft one" not in io.output
+
+
+def test_warning_detail_lines_only_for_the_viewed_variant(drafts_tree: DraftsTree) -> None:
+    path = drafts_tree.paths["draft_warn"]
+    d = drafts.load(path)
+    d.variants[0] = "This is guaranteed to work"
+    d.variants[1] = "It works in 99 ways"
+    d.meta.warnings = ["prohibited_claim", "unsourced_number"]
+    drafts.save(d)
+    first = ScriptedIO(["s", "q"])
+    _run(drafts_tree, first)
+    assert "variant 1 matches: guaranteed" in first.output
+    assert "variant 2 unsourced" not in first.output
+    second = ScriptedIO(["s", "n", "q"])
+    _run(drafts_tree, second)
+    assert "variant 2 unsourced: 99" in second.output
+
+
+def test_n_and_p_work_on_an_approved_draft(drafts_tree: DraftsTree) -> None:
+    io = ScriptedIO(["n", "q"])  # the first draft in review order is approved_warn
+    _run(drafts_tree, io)
+    assert "Variant 2 of 3" in io.output and "approved_warn two" in io.output
+    assert "unknown key" not in io.output and "promo unapprove" not in io.output
+
+
+def test_view_resets_after_regenerate(drafts_tree: DraftsTree) -> None:
+    gen = FakeGenerator(responses=[["fresh one", "fresh two", "fresh three"]])
+    io = ScriptedIO(["s", "s", "n", "r", "q"], ["a note"])
+    _run(drafts_tree, io, generator=gen)
+    assert "fresh one" in io.output and "fresh two" not in io.output
+
+
+def test_view_is_clamped_when_an_edit_removes_variants(drafts_tree: DraftsTree) -> None:
+    def shrink(path: Path) -> None:
+        d = drafts.load(path)
+        d.variants = ["only one"]
+        d.meta.variants = 1
+        d.meta.chosen = None
+        drafts.save(d)
+
+    io = ScriptedIO(["s", "s", "n", "n", "e", "q"], edit=shrink)
+    _run(drafts_tree, io)
+    assert "Variant 1 of 1" in io.output and "only one" in io.output
+    assert "[1] choose" in io.output
 
 
 def test_q_returns_immediately_and_leaves_files_untouched(drafts_tree: DraftsTree) -> None:

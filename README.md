@@ -29,7 +29,7 @@ Generate drafts (needs `ANTHROPIC_API_KEY`). Existing drafts are skipped unless 
 
     uv run promo draft example
 
-Review drafts one at a time (interactive terminal only). Keys: 1-9 choose a variant, `c` copy, `e` edit, `r` regenerate with a note, `a` approve, `s` skip, `q` quit. `--all` includes drafts that are already approved:
+Review drafts one at a time (interactive terminal only). One variant is shown per screen. Keys: `n` next and `p` previous variant, 1-9 choose a variant (up to the number shown), `c` copy, `e` edit, `r` regenerate with a note, `a` approve, `s` skip, `q` quit. `--all` includes drafts that are already approved:
 
     uv run promo review example
 
