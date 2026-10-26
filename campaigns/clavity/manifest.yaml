@@ -1,0 +1,53 @@
+# Copyright (c) 2026 Costas Kirgoussios
+#
+# This software is licensed under the PolyForm Noncommercial License 1.0.0.
+# You may obtain a copy of the License at:
+# https://polyformproject.org/licenses/noncommercial/1.0.0/
+
+product:
+  name: clavity
+  tagline: Claude Code drives, a live Antigravity (agy) peer reviews.
+  problem_statement: A review that agrees with the author instead of reading the code gives false confidence.
+  key_features:
+    - Claude Code and an Antigravity (agy) instance work in the same folder, one driving and one reviewing
+    - Adversarial panel review of specs and plans, and a capstone review of committed code
+    - Optional add-ons agy-autotrain, commonmemory and review-relay
+  target_url: https://github.com/ckir/clavity
+  audience: Claude Code users who already use the superpowers plugin
+  proof_points:
+    - Round 1 of an adversarial review of a snapshot change returned GREEN with zero findings, and it was wrong.
+    - The setting AGY_INBOX_SNAPSHOT_KEEP fed tail -n +$((KEEP + 1)) in a bash script without validation.
+    - bash evaluates a non-numeric name as 0, so abc, a negative number, or 0 all became tail -n +1, which lists every snapshot slot and deletes them all, including the snapshot written moments earlier by the same invocation.
+    - "Measured with a control: KEEP=5 kept 4 slots; KEEP=0, abc and -1 kept 0, silently, with exit status 0."
+    - The ledger's own reading is that a review whose findings never surprise the author has agreed with the author rather than read the code.
+    - Fixed in commit 3adc045.
+    - Source is clavity's own capstone ledger, the author's own account.
+  prohibited_claims:
+    - completely free
+    - free for any use
+    - catches every bug
+    - no bugs
+    - independently verified
+    - guaranteed
+    - production-ready
+  disclosures:
+    - "I'm the author of clavity."
+brand_voice: campaigns/clavity/brand.md
+confidential: false
+launch_date: 2026-11-02
+beats:
+  - id: case-study
+    offset_days: 0
+    intent: deep-dive
+    networks: [facebook]
+    notes: Tell the snapshot-prune catch from the proof points in plain words for a developer who has never seen the project. Say it comes from clavity's own ledger, as my own account, one example and not a rate. Do not include any link or install command. Do not use hashtags.
+  - id: install-comment
+    offset_days: 0
+    intent: custom
+    networks: [facebook]
+    notes: "Write the first comment under the case-study post, for Claude Code users. State that it needs the superpowers plugin (https://github.com/obra/superpowers) and Antigravity (agy), and that clavity is licensed PolyForm Noncommercial 1.0.0 for personal, academic and non-profit use only. Say clavity-dotnet and clavity-classic are mutually exclusive and give only the plugin route. Reproduce these two commands exactly, each on its own line: claude plugin marketplace add ckir/clavity and claude plugin install clavity@clavity. Include the repository link once."
+  - id: addon-replies
+    offset_days: 0
+    intent: custom
+    networks: [facebook]
+    notes: "Write three short reply paragraphs for people who already installed the core plugin, one per add-on, each starting with its exact command: claude plugin install agy-autotrain@clavity (learns how to drive agy from everyday use), claude plugin install commonmemory@clavity (shared memory for Claude and agy), claude plugin install review-relay@clavity (assisted copy-paste review rounds with web AI models). No other claims."
